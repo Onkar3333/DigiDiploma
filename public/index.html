@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Gurukul - Student Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        /* Base font for the body */
+        body { font-family:a'Inter', sans-serif; }
+
+        /* Decorative font for headers */
+        h1, h2, h3, h4, .font-decorative { font-family: 'Merriweather', serif; }
+
+        /* Page visibility toggles */
+        .page { display: none; }
+        .page.active { display: block; }
+        .main-content-view { display: none; }
+        .main-content-view.active { display: block; }
+
+        /* --- Digital Gurukul Theme --- */
+        :root {
+            --primary: #5B21B6;   /* Deep Indigo */
+            --accent: #F59E0B;     /* Golden Yellow */
+            --accent-dark: #D97706;/* Darker Yellow for hover */
+            --support: #FDE68A;   /* Pale Yellow */
+            --bg-parchment: #FEFCE8;/* Lighter Parchment for cards */
+            --text-dark: #44403C;  /* Stone-700 for body text */
+            --text-light: #FFFFFF;
+        }
+
+        /* UPDATED: Body with background image */
+        body {
+            background-image: linear-gradient(rgba(254, 252, 232, 0.85), rgba(254, 252, 232, 0.85)), url('https://www.publicdomainpictures.net/pictures/270000/velka/background-with-indian-ornament.jpg');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            color: var(--text-dark);
+        }
+        
+        .header-bg { background-color: var(--primary); }
+        
+        /* Buttons */
+        .btn-primary { background-color: var(--accent); color: var(--text-dark); }
+        .btn-primary:hover { background-color: var(--accent-dark); }
+        .btn-secondary { background-color: var(--primary); color: var(--text-light); }
+        .btn-secondary:hover { background-color: #4C1D95; } /* Slightly lighter Indigo */
+
+        /* Text gradient using new palette */
+        .text-gradient {
+            background: linear-gradient(to right, var(--support), var(--accent));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Wooden Texture Simulation for Cards */
+        .card-texture {
+            background-color: #292524; /* Fallback color */
+            background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.15));
+        }
+        .card-texture h2, .card-texture label, .card-texture button {
+             color: var(--text-light);
+        }
+         .card-texture input, .card-texture select {
+            background-color: #44403C;
+            border-color: #78716C;
+            color: var(--text-light);
+        }
+        .card-texture input::placeholder {
+            color: #A8A29E;
+        }
+        .card-texture #show-login-btn, .card-texture #show-register-btn {
+            color: var(--accent);
+        }
+        .card-texture #show-login-btn:hover, .card-texture #show-register-btn:hover {
+            color: var(--support);
+        }
+
+        /* Sidebar transition styles */
+        #left-sidebar { transition: transform 0.3s ease-in-out; }
+        #sidebar-overlay { transition: opacity 0.3s ease-in-out; }
+        
+        /* Marquee Animation for Notices */
+        .marquee-container {
+            height: 250px;
+            overflow: hidden;
+            position: relative;
+        }
+        .marquee {
+            position: absolute;
+            width: 100%;
+            animation: marquee 20s linear infinite;
+        }
+        .marquee .notice-item { padding-bottom: 1rem; }
+        @keyframes marquee {
+            0%   { top: 100%; }
+            100% { top: -150%; }
+        }
+
+        /* Right Sidebar Panel Background */
+        .college-panel-header {
+            background-size: cover;
+            background-position: center;
+            color: white;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.7);
+        }
+
+        /* Custom Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.6);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-box {
+            background-color: var(--bg-parchment);
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            border: 2px solid var(--accent);
+        }
+        
+        /* Collapsible Menu Styles */
+        #menu-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+    </style>
+</head>
+<body class="text-stone-800">
+
+    <!-- Modal for notifications -->
+    <div id="custom-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h3 id="modal-title" class="text-2xl font-bold mb-4 font-decorative" style="color: var(--primary);">Notification</h3>
+            <p id="modal-message" class="mb-6 text-stone-700"></p>
+            <button id="modal-close-btn" class="btn-secondary font-bold py-2 px-6 rounded-lg">OK</button>
+        </div>
+    </div>
+
+    <!-- Landing Page Layout -->
+    <div id="landing-layout" class="page active">
+        <div class="w-full">
+            <header class="header-bg text-white p-4 flex items-center justify-between shadow-lg">
+                <div class="flex-1">
+                    <button id="sidebar-toggle-btn" class="md:hidden mr-2 p-2 text-2xl font-bold text-amber-300">&#9776;</button>
+                </div>
+                <div class="flex-1 flex justify-center items-center">
+                    <div class="h-12 w-12 bg-white rounded-full flex items-center justify-center mr-4">
+                        <span class="text-2xl font-bold" style="color: var(--primary);">DG</span>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl md:text-4xl font-black text-gradient">Digital Gurukul</h1>
+                        <p class="text-xs md:text-sm text-amber-100/80">Ancient Wisdom, Modern Learning</p>
+                    </div>
+                </div>
+                <div class="flex-1"></div>
+            </header>
+
+            <div class="flex flex-col md:flex-row gap-6 p-4 md:p-6">
+                <!-- Left Sidebar -->
+                <aside id="left-sidebar" class="fixed md:static top-0 left-0 h-full w-64 md:w-1/4 lg:w-1/5 bg-white/70 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none shadow-lg md:shadow-md rounded-lg border-r md:border-gray-200 z-50 transform -translate-x-full md:transform-none" style="background-color: var(--bg-parchment);">
+                    <div class="p-4">
+                        <div id="menu-header" class="flex justify-between items-center p-2 rounded-md cursor-pointer" style="background-color: var(--accent);">
+                             <h3 class="text-lg font-bold text-stone-800">Menu</h3>
+                             <span id="menu-toggle-icon" class="transform transition-transform duration-300">▼</span>
+                        </div>
+                        <div id="menu-content">
+                            <ul class="space-y-2 text-sm font-medium mt-2">
+                                <li><a href="#" class="sidebar-nav-link block p-2 rounded-md text-stone-700 hover:bg-amber-100">Project Competition</a></li>
+                                <li><a href="#" class="sidebar-nav-link block p-2 rounded-md text-stone-700 hover:bg-amber-100">Technical Quiz Competition</a></li>
+                                <li><a href="#" class="sidebar-nav-link block p-2 rounded-md text-stone-700 hover:bg-amber-100">Paper presentation</a></li>
+                                <li><a href="#" class="sidebar-nav-link block p-2 rounded-md text-stone-700 hover:bg-amber-100">Industrial Training</a></li>
+                                <li><a href="#" class="sidebar-nav-link block p-2 rounded-md text-stone-700 hover:bg-amber-100">Topper</a></li>
+                                <li><a href="#" class="sidebar-nav-link block p-2 rounded-md text-stone-700 hover:bg-amber-100">Result Analysis</a></li>
+                                <li><a href="#" id="show-register-from-link" class="sidebar-nav-link block p-2 rounded-md font-bold hover:bg-amber-100" style="color: var(--primary);">New Candidate Registration</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </aside>
+                
+                <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden md:hidden"></div>
+
+                <!-- Main Content (Login/Register) -->
+                <main id="central-content" class="flex-1">
+                    <div id="login-view" class="main-content-view active">
+                        <div class="card-texture p-6 md:p-8 rounded-lg shadow-md">
+                            <h2 class="text-xl font-bold p-3 rounded-md mb-6 text-center">Login</h2>
+                            <form id="login-form" class="space-y-4">
+                                <div><label for="login-email" class="block text-sm font-medium">Email</label><input type="email" id="login-email" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" placeholder="Enter your email" required /></div>
+                                <div><label for="login-password" class="block text-sm font-medium">Password</label><input type="password" id="login-password" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" required /></div>
+                                <button type="submit" class="w-full btn-primary font-bold py-2.5 px-4 rounded-lg">Login</button>
+                            </form>
+                            <div class="text-center mt-4 pt-4 border-t border-t-stone-600">
+                                <button id="show-register-btn" class="font-semibold hover:underline">New Candidate Registration</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="register-view" class="main-content-view">
+                        <div class="card-texture p-6 md:p-8 rounded-lg shadow-md">
+                            <h2 class="text-xl font-bold p-3 rounded-md mb-6 text-center">New Candidate Registration</h2>
+                            <form id="register-form" class="space-y-4">
+                                <div><label for="register-college" class="block text-sm font-medium">Select Polytechnic</label><select id="register-college" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm"></select></div>
+                                <div><label for="register-branch" class="block text-sm font-medium">Select Branch</label><select id="register-branch" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm"></select></div>
+                                <div><label for="register-name" class="block text-sm font-medium">Full Name</label><input type="text" id="register-name" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" required /></div>
+                                <div><label for="register-email" class="block text-sm font-medium">Email</label><input type="email" id="register-email" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" required /></div>
+                                <div><label for="register-password" class="block text-sm font-medium">Create Password</label><input type="password" id="register-password" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" required /></div>
+                                <button type="submit" class="w-full btn-secondary font-bold py-2.5 px-4 rounded-lg">Register</button>
+                            </form>
+                            <div class="text-center mt-4 pt-4 border-t border-t-stone-600">
+                                <button id="show-login-btn" class="font-semibold hover:underline">Already Registered? Login Here</button>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+                
+                <!-- Right Sidebar: Content is now dynamic -->
+                <aside id="right-sidebar-panel" class="w-full md:w-1/3 lg:w-1/4 mt-4 md:mt-0">
+                    <!-- College panel content is injected here by JavaScript -->
+                </aside>
+
+            </div>
+        </div>
+    </div>
+    
+    <!-- Student Dashboard Page -->
+    <div id="student-dashboard-page" class="page">
+        <header class="bg-white shadow-md p-4 flex justify-between items-center">
+            <h2 class="text-2xl font-bold flex items-center" style="color: var(--primary);">
+                <span class="text-3xl mr-3">📖</span>
+                Your Study Portal
+            </h2>
+            <div>
+                <span id="dashboard-user-name" class="text-stone-700 mr-4 font-medium"></span>
+                <button id="logout-btn" class="btn-secondary font-bold py-2 px-4 rounded-lg text-sm">Logout</button>
+            </div>
+        </header>
+        <main id="student-dashboard-content" class="p-4 md:p-8">
+            <!-- Dynamic content will be injected here -->
+        </main>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    
+    // --- DATABASE & STATE ---
+    const db = {
+        colleges: [
+            { name: "Government Polytechnic, Awasari (Kh.)", logo: "https://www.gpawasari.ac.in/Images/logo.PNG", panelImage: "https://www.gpawasari.ac.in/images/slider/3.JPG", hindiName: "शासकीय तंत्रनिकेतन, अवसरी (खु.)" },
+            { name: "Government Polytechnic, Pune", logo: "https://www.gppune.ac.in/images/logo2.png", panelImage: "https://www.gppune.ac.in/images/slider/s1.jpg", hindiName: "शासकीय तंत्रनिकेतन, पुणे" },
+            { name: "Government Polytechnic, Mumbai" },
+            { name: "Government Polytechnic, Nagpur" },
+            { name: "Cusrow Wadia Institute of Technology, Pune" }
+        ],
+        branches: ["Electronics & Telecommunication", "Computer Engineering", "Information Technology", "Mechanical Engineering", "Civil Engineering", "Electrical Engineering", "Automobile Engineering"],
+        branchEmojis: { "Electronics & Telecommunication": "📡", "Computer Engineering": "💻", "Information Technology": "🖥️",  "Mechanical Engineering": "⚙️", "Civil Engineering": "🏗️", "Electrical Engineering": "💡", "Automobile Engineering": "🚗" },
+        subjects: {
+            // NEW Data from PDF for Electronics & Telecommunication
+            'Electronics & Telecommunication': {
+                'Semester 1': ['Communication Skills', 'Engineering Graphics', 'Basic Science (Physics & Chemistry)', 'Fundamentals of ICT', 'Engineering Workshop'],
+                'Semester 2': ['Applied Mathematics', 'Basic Electronics', 'Elements of Electrical Engineering', 'Electronic Materials & Components', 'Professional Communication', 'Social and Life Skills', 'Electronics Workshop Practice', 'Programming in C Language'],
+                'Semester 3': ['Essence of Indian Constitution', 'Basic Python Programming', 'Analog Electronics', 'Digital Techniques', 'Electrical Circuits & Networks', 'Principles of Electronic Communication', 'Electronics Measurements & Instrumentation'],
+                'Semester 4': ['Environmental Education and Sustainability', 'Microcontroller & Applications', 'Consumer Electronics', 'Digital Communication', 'Basic Power Electronics', 'Electronic Equipment Maintenance & Simulation', 'Open Elective I'],
+                'Semester 5': ['Entrepreneurship Development and Startups', 'Embedded System', 'Mobile & Wireless Communication', 'Seminar and Project Initiation', 'Internship', 'IOT Applications / Microwave Eng.'],
+                'Semester 6': ['Management', 'Emerging Trends in Electronics', 'Computer Network & Data Communication', 'Optical Networking and Satellite Communication', 'Capstone Project', 'Drone Tech / Control Sys / VLSI']
+            },
+            'Computer Engineering': {
+                'Semester 1': ['Basic Mathematics', 'Programming in C', 'Basic Electronics', 'Computer Fundamentals'],
+                'Semester 2': ['Applied Mathematics', 'Data Structures', 'Digital Electronics', 'Web Programming'],
+                'Semester 3': ['Database Management', 'Computer Graphics', 'OOP with C++'],
+                'Semester 4': ['Java Programming', 'Operating Systems', 'Computer Networks'],
+                'Semester 5': ['Software Engineering', 'Advanced Java', 'AI Concepts'],
+                'Semester 6': ['Mobile Application Dev', 'Project Management', 'Cyber Security']
+            },
+            'Mechanical Engineering': {
+                'Semester 1': ['Engineering Mechanics', 'Thermodynamics', 'Workshop Practice'], 
+                'Semester 2': ['Strength of Materials', 'Fluid Mechanics', 'Theory of Machines'], 
+                'Semester 3': [], 'Semester 4': [], 'Semester 5': [], 'Semester 6': []
+            },
+            'Other': { 'Semester 1': ['Coming Soon...'] }
+        },
+        semesterOptions: [
+            { name: 'Syllabus', emoji: '📜' },
+            { name: 'Manual Answer', emoji: '✍️' },
+            { name: 'Guessing Papers', emoji: '🤔' },
+            { name: 'Model Answer Papers', emoji: '✅' },
+            { name: 'MSBTE IMP', emoji: '✨' },
+            { name: 'Micro Project Topics', emoji: '🔬' },
+            { name: 'Notes', emoji: '📝' }
+        ]
+    };
+    
+    let appState = {
+        isAuthenticated: false,
+        currentUser: 'Guest',
+        currentCollege: '',
+        currentBranch: '',
+        dashboardView: 'semesters', // 'semesters', 'subjects', or 'materials'
+        currentSemester: 'Semester 1',
+        currentSubject: ''
+    };
+
+    // --- ELEMENT SELECTORS ---
+    const collegeSelects = document.querySelectorAll('#register-college');
+    const branchSelects = document.querySelectorAll('#register-branch');
+    const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
+    const leftSidebar = document.getElementById('left-sidebar');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+    const dashboardContent = document.getElementById('student-dashboard-content');
+    const modal = document.getElementById('custom-modal');
+    const modalMessage = document.getElementById('modal-message');
+    const modalCloseBtn = document.getElementById('modal-close-btn');
+    const menuHeader = document.getElementById('menu-header');
+    const menuContent = document.getElementById('menu-content');
+    const menuToggleIcon = document.getElementById('menu-toggle-icon');
+    const rightSidebarPanel = document.getElementById('right-sidebar-panel');
+    
+    // --- MODAL FUNCTIONS ---
+    function showModal(message) {
+        modalMessage.textContent = message;
+        modal.style.display = 'flex';
+    }
+
+    function hideModal() {
+        modal.style.display = 'none';
+    }
+
+    // --- RENDER FUNCTIONS ---
+    function showPage(pageId) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById(pageId).classList.add('active');
+    }
+
+    function renderCentralView(viewId) {
+        document.querySelectorAll('.main-content-view').forEach(v => v.classList.remove('active'));
+        document.getElementById(viewId).classList.add('active');
+    }
+    
+    function renderRightSidebar(collegeName) {
+        let collegeData = db.colleges.find(c => c.name === collegeName && c.logo) || db.colleges[0];
+        const panelHTML = `
+            <div class="rounded-lg shadow-md border border-stone-300 overflow-hidden" style="background-color: var(--bg-parchment);">
+                <div class="text-center p-3 college-panel-header" style="background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('${collegeData.panelImage || ''}');">
+                    <img src="${collegeData.logo || ''}" alt="${collegeData.name} Logo" onerror="this.onerror=null;this.src='https://placehold.co/64x64/ffffff/5B21B6?text=Logo';" class="mx-auto h-16 w-16 mb-2 bg-white rounded-full p-1 border-2" style="border-color: var(--support);">
+                    <h3 class="font-bold text-white text-md">${collegeData.hindiName || collegeData.name}</h3>
+                    <p class="text-xs text-white/90">${collegeData.name}</p>
+                </div>
+                <div class="p-4">
+                    <h4 class="font-bold mb-2" style="color: var(--primary);">College Notices</h4>
+                    <div class="marquee-container text-sm">
+                        <ul class="marquee">
+                            <li class="notice-item"><a href="#" class="text-stone-700 hover:text-indigo-700"><span>📜</span> CAP Round I Allotment Published <span class="text-red-500 font-bold">New</span></a></li>
+                            <li class="notice-item"><a href="#" class="text-stone-700 hover:text-indigo-700"><span>🗓️</span> Online Registration extended till 30th June</a></li>
+                            <li class="notice-item"><a href="#" class="text-stone-700 hover:text-indigo-700"><span>🏢</span> Facilitation Center list updated.</a></li>
+                            <li class="notice-item"><a href="#" class="text-stone-700 hover:text-indigo-700"><span>✅</span> Provisional Merit List on 5th July.</a></li>
+                            <li class="notice-item"><a href="#" class="text-stone-700 hover:text-indigo-700"><span>🗣️</span> Grievance submission period: 6th-8th July.</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>`;
+        rightSidebarPanel.innerHTML = panelHTML;
+    }
+
+    function getSubjectEmoji(subjectTitle) {
+        const keywords = { 'Math': '🔢', 'Programming': '💻', 'Electronics': '⚡️', 'Data': '💾', 'Web': '🌐', 'OOP': '🧩', 'Java': '☕️', 'Network': '📶', 'Mechanics': '⚙️', 'Thermodynamics': '🔥', 'Security': '🛡️', 'Project': '📂', 'Software': '📝', 'Communication': '📡', 'Skills': '🗣️', 'Graphics': '🎨', 'Science': '�', 'Workshop': '🛠️', 'Electrical': '💡', 'Constitution': '⚖️', 'Python': '🐍', 'Analog': '📈', 'Digital': '🔢', 'Circuits': '🔗', 'Measurements': '📏', 'Environmental': '🌳', 'Microcontroller': '🤖', 'Consumer': '🛍️', 'Power': '🔌', 'Maintenance': '🔧', 'Elective': '⭐', 'Entrepreneurship': '💼', 'Embedded': '🧠', 'Mobile': '📱', 'Seminar': '🧑‍🏫', 'Internship': '👨‍💼', 'IOT': '☁️', 'Microwave': '📡', 'Management': '📊', 'Trends': '🚀', 'Optical': '💡', 'Satellite': '🛰️', 'Capstone': '🎓', 'Drone': '🚁', 'Control': '🎛️', 'VLSI': '칩' };
+        for (const key in keywords) { if (subjectTitle.includes(key)) return keywords[key]; }
+        return '📚';
+    }
+
+    function renderDashboard() {
+        if (!appState.isAuthenticated) {
+            showPage('landing-layout');
+            return;
+        }
+
+        document.getElementById('dashboard-user-name').textContent = `Welcome, ${appState.currentUser}`;
+        let contentHTML = '';
+
+        const branchKey = db.subjects[appState.currentBranch] ? appState.currentBranch : 'Other';
+
+        if (appState.dashboardView === 'semesters') {
+            const semesters = Object.keys(db.subjects[branchKey] || {});
+            const semIcons = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+            contentHTML = `
+                <div class="mb-8 text-center">
+                    <p class="text-lg text-stone-600">You are viewing materials for:</p>
+                    <h2 class="text-4xl font-black text-transparent bg-clip-text" style="background-image: linear-gradient(to right, var(--primary), var(--accent));">${db.branchEmojis[appState.currentBranch] || ''} ${appState.currentBranch}</h2>
+                    <p class="mt-6 text-xl font-bold text-stone-700 font-decorative">Select a Semester</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    ${semesters.map((sem, index) => `
+                        <button data-semester="${sem}" class="semester-card bg-white p-6 rounded-lg shadow-md border-2 border-transparent hover:border-amber-500 hover:shadow-xl transition-all flex items-center gap-4" style="background-color: var(--bg-parchment);">
+                            <div class="flex-shrink-0 w-12 h-12 text-white flex items-center justify-center rounded-full font-bold text-xl" style="background-color: var(--primary);">${semIcons[index] || index + 1}</div>
+                            <div>
+                                <h3 class="text-xl font-bold" style="color: var(--primary);">📜 ${sem}</h3>
+                                <p class="text-stone-500 mt-1">View subjects for this semester.</p>
+                            </div>
+                        </button>`).join('')}
+                </div>`;
+        } else if (appState.dashboardView === 'subjects') {
+             const subjects = (db.subjects[branchKey] || {})[appState.currentSemester] || [];
+             contentHTML = `
+                <div class="mb-6">
+                    <button id="back-to-semesters" class="font-semibold hover:underline" style="color: var(--primary);">&larr; Back to Semesters</button>
+                </div>
+                <h3 class="text-3xl font-bold mb-6 text-center font-decorative" style="color: var(--primary);">Subjects for ${appState.currentSemester}</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    ${subjects.length > 0 ? subjects.map(subject => `
+                        <button data-subject="${subject}" class="subject-card bg-white p-6 rounded-lg shadow-md border-2 border-transparent hover:border-amber-500 hover:shadow-xl transition-all flex flex-col items-center justify-center text-center gap-3" style="background-color: var(--bg-parchment);">
+                           <div class="text-5xl">${getSubjectEmoji(subject)}</div>
+                           <h4 class="text-lg font-bold" style="color: var(--primary);">${subject}</h4>
+                        </button>
+                    `).join('') : '<p class="text-stone-500 text-center col-span-full">No subjects listed yet.</p>'}
+                </div>
+            `;
+        } else if (appState.dashboardView === 'materials') {
+            contentHTML = `
+                <div class="mb-6">
+                    <button id="back-to-subjects" class="font-semibold hover:underline" style="color: var(--primary);">&larr; Back to Subjects</button>
+                </div>
+                <div class="p-6 rounded-lg shadow-md border" style="background-color: var(--bg-parchment);">
+                     <h3 class="text-2xl font-bold mb-4" style="color: var(--primary);">Materials for ${appState.currentSubject}</h3>
+                     <div class="space-y-3">
+                        ${db.semesterOptions.map(opt => `
+                            <div class="p-3 border border-stone-200 rounded-lg flex items-center justify-between bg-white/50">
+                                <p class="font-semibold flex items-center"><span class="mr-3">${opt.emoji}</span> ${opt.name}</p>
+                                <a href="#" class="download-btn btn-primary font-bold py-1 px-3 rounded-md text-sm">View</a>
+                            </div>`).join('')}
+                    </div>
+                </div>`;
+        }
+        
+        dashboardContent.innerHTML = contentHTML;
+        showPage('student-dashboard-page');
+        addDashboardEventListeners();
+    }
+
+    // --- EVENT LISTENERS (Updated Flow) ---
+    function addDashboardEventListeners() {
+        if (appState.dashboardView === 'semesters') {
+            document.querySelectorAll('.semester-card').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    appState.currentSemester = e.currentTarget.dataset.semester;
+                    appState.dashboardView = 'subjects'; // Go to subjects view
+                    renderDashboard();
+                });
+            });
+        } else if (appState.dashboardView === 'subjects') {
+            document.getElementById('back-to-semesters').addEventListener('click', () => {
+                appState.dashboardView = 'semesters';
+                renderDashboard();
+            });
+            document.querySelectorAll('.subject-card').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    appState.currentSubject = e.currentTarget.dataset.subject;
+                    appState.dashboardView = 'materials'; // Go to materials view
+                    renderDashboard();
+                });
+            });
+        } else if (appState.dashboardView === 'materials') {
+            document.getElementById('back-to-subjects').addEventListener('click', () => {
+                appState.dashboardView = 'subjects';
+                renderDashboard();
+            });
+        }
+    }
+    
+    function toggleSidebar() {
+        leftSidebar.classList.toggle('-translate-x-full');
+        sidebarOverlay.classList.toggle('hidden');
+    }
+    
+    // --- INITIALIZATION ---
+    function init() {
+        collegeSelects.forEach(select => select.innerHTML = db.colleges.map(c => `<option value="${c.name}">${c.name}</option>`).join(''));
+        branchSelects.forEach(select => {
+            select.innerHTML = db.branches.map(b => `<option value="${b}">${db.branchEmojis[b] || ''} ${b}</option>`).join('');
+        });
+        
+        renderRightSidebar(db.colleges[0].name);
+
+        menuHeader.addEventListener('click', () => {
+            const isHidden = menuContent.style.maxHeight === '0px' || !menuContent.style.maxHeight;
+            menuContent.style.maxHeight = isHidden ? menuContent.scrollHeight + 'px' : '0px';
+            menuToggleIcon.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+        });
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            if (!email || !password) {
+                showModal('Please enter your email and password.');
+                return;
+            }
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    // Save JWT and user info for admin and student
+                    localStorage.setItem('dg_jwt', data.token);
+                    localStorage.setItem('dg_user', JSON.stringify(data.user));
+                    if (data.user.role === 'admin') {
+                        window.location.href = '/admin';
+                        return;
+                    } else if (data.user.role === 'student') {
+                        appState.isAuthenticated = true;
+                        appState.currentUser = data.user.name;
+                        appState.currentCollege = data.user.college;
+                        appState.currentBranch = data.user.branch;
+                        appState.dashboardView = 'semesters';
+                        renderDashboard();
+                        return;
+                    } else {
+                        showModal('Selected account does not have access.');
+                    }
+                } else {
+                    showModal(data.error || 'Login failed.');
+                }
+            } catch (err) {
+                showModal('Login failed. Please try again.');
+            }
+        });
+        
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('register-name').value;
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+            const college = document.getElementById('register-college').value;
+            const branch = document.getElementById('register-branch').value;
+            if (!name || !email || !password || !college || !branch) {
+                showModal('Please fill in all fields.');
+                return;
+            }
+            const payload = { name, email, password, college, branch };
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showModal('Registration Successful! Please login.');
+                    renderCentralView('login-view');
+                } else {
+                    showModal(data.error || 'Registration failed.');
+                }
+            } catch (err) {
+                showModal('Registration failed. Please try again.');
+            }
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            appState.isAuthenticated = false;
+            appState.currentUser = 'Guest';
+            renderRightSidebar(db.colleges[0].name);
+            showPage('landing-layout');
+            renderCentralView('login-view');
+        });
+        
+        sidebarToggleBtn.addEventListener('click', toggleSidebar);
+        sidebarOverlay.addEventListener('click', toggleSidebar);
+        
+        leftSidebar.addEventListener('click', (e) => {
+            if (e.target.matches('.sidebar-nav-link')) {
+                e.preventDefault();
+                if (e.target.id === 'show-register-from-link') {
+                    renderCentralView('register-view');
+                }
+                if (window.innerWidth < 768) {
+                    toggleSidebar();
+                }
+            }
+        });
+
+        document.getElementById('show-register-btn').addEventListener('click', () => renderCentralView('register-view'));
+        document.getElementById('show-login-btn').addEventListener('click', () => renderCentralView('login-view'));
+        
+        document.getElementById('register-college').addEventListener('change', (e) => {
+            renderRightSidebar(e.target.value);
+        });
+
+        modalCloseBtn.addEventListener('click', hideModal);
+    }
+
+    init();
+});
+</script>
+</body>
+</html>
