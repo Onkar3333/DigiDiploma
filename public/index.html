@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Digital Gurukul - Student Portal</title>
+    <title>DigiDiploma - Student Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         /* Base font for the body */
@@ -19,7 +20,7 @@
         .main-content-view { display: none; }
         .main-content-view.active { display: block; }
 
-        /* --- Digital Gurukul Theme --- */
+        /* --- DigiDiploma Theme --- */
         :root {
             --primary: #5B21B6;   /* Deep Indigo */
             --accent: #F59E0B;     /* Golden Yellow */
@@ -32,10 +33,7 @@
 
         /* UPDATED: Body with background image */
         body {
-            background-image: linear-gradient(rgba(254, 252, 232, 0.85), rgba(254, 252, 232, 0.85)), url('https://www.publicdomainpictures.net/pictures/270000/velka/background-with-indian-ornament.jpg');
-            background-size: cover;
-            background-position: center;
-            background-attachment: fixed;
+            background: linear-gradient(135deg, #fefce8 0%, #fde68a 50%, #fefce8 100%);
             color: var(--text-dark);
         }
         
@@ -156,11 +154,11 @@
                 </div>
                 <div class="flex-1 flex justify-center items-center">
                     <div class="h-12 w-12 bg-white rounded-full flex items-center justify-center mr-4">
-                        <span class="text-2xl font-bold" style="color: var(--primary);">DG</span>
+                        <span class="text-2xl font-bold" style="color: var(--primary);">DD</span>
                     </div>
                     <div>
-                        <h1 class="text-2xl md:text-4xl font-black text-gradient">Digital Gurukul</h1>
-                        <p class="text-xs md:text-sm text-amber-100/80">Ancient Wisdom, Modern Learning</p>
+                        <h1 class="text-2xl md:text-4xl font-black text-gradient">DigiDiploma</h1>
+                        <p class="text-xs md:text-sm text-amber-100/80">Digital Diploma Platform</p>
                     </div>
                 </div>
                 <div class="flex-1"></div>
@@ -210,10 +208,80 @@
                         <div class="card-texture p-6 md:p-8 rounded-lg shadow-md">
                             <h2 class="text-xl font-bold p-3 rounded-md mb-6 text-center">New Candidate Registration</h2>
                             <form id="register-form" class="space-y-4">
-                                <div><label for="register-college" class="block text-sm font-medium">Select Polytechnic</label><select id="register-college" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm"></select></div>
-                                <div><label for="register-branch" class="block text-sm font-medium">Select Branch</label><select id="register-branch" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm"></select></div>
+                                <div>
+                                    <label for="register-college" class="block text-sm font-medium">Select Polytechnic</label>
+                                    <select id="register-college" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm">
+                                        <option value="">Select college</option>
+                                        <option value="Government Polytechnic, Awasari (Kh.)">Government Polytechnic, Awasari (Kh.)</option>
+                                        <option value="Government Polytechnic, Pune">Government Polytechnic, Pune</option>
+                                        <option value="Government Polytechnic, Mumbai">Government Polytechnic, Mumbai</option>
+                                        <option value="Government Polytechnic, Nagpur">Government Polytechnic, Nagpur</option>
+                                        <option value="Government Polytechnic, Aurangabad">Government Polytechnic, Aurangabad</option>
+                                        <option value="Government Polytechnic, Nashik">Government Polytechnic, Nashik</option>
+                                        <option value="Government Polytechnic, Kolhapur">Government Polytechnic, Kolhapur</option>
+                                        <option value="Government Polytechnic, Solapur">Government Polytechnic, Solapur</option>
+                                        <option value="Government Polytechnic, Amravati">Government Polytechnic, Amravati</option>
+                                        <option value="Government Polytechnic, Jalgaon">Government Polytechnic, Jalgaon</option>
+                                        <option value="Government Polytechnic, Latur">Government Polytechnic, Latur</option>
+                                        <option value="Government Polytechnic, Nanded">Government Polytechnic, Nanded</option>
+                                        <option value="Government Polytechnic, Beed">Government Polytechnic, Beed</option>
+                                        <option value="Government Polytechnic, Osmanabad">Government Polytechnic, Osmanabad</option>
+                                        <option value="Government Polytechnic, Parbhani">Government Polytechnic, Parbhani</option>
+                                        <option value="Government Polytechnic, Hingoli">Government Polytechnic, Hingoli</option>
+                                        <option value="Government Polytechnic, Washim">Government Polytechnic, Washim</option>
+                                        <option value="Government Polytechnic, Buldhana">Government Polytechnic, Buldhana</option>
+                                        <option value="Government Polytechnic, Akola">Government Polytechnic, Akola</option>
+                                        <option value="Government Polytechnic, Yavatmal">Government Polytechnic, Yavatmal</option>
+                                        <option value="Government Polytechnic, Wardha">Government Polytechnic, Wardha</option>
+                                        <option value="Government Polytechnic, Chandrapur">Government Polytechnic, Chandrapur</option>
+                                        <option value="Government Polytechnic, Gadchiroli">Government Polytechnic, Gadchiroli</option>
+                                        <option value="Government Polytechnic, Bhandara">Government Polytechnic, Bhandara</option>
+                                        <option value="Government Polytechnic, Gondia">Government Polytechnic, Gondia</option>
+                                        <option value="Government Polytechnic, Ratnagiri">Government Polytechnic, Ratnagiri</option>
+                                        <option value="Government Polytechnic, Sindhudurg">Government Polytechnic, Sindhudurg</option>
+                                        <option value="Government Polytechnic, Raigad">Government Polytechnic, Raigad</option>
+                                        <option value="Government Polytechnic, Thane">Government Polytechnic, Thane</option>
+                                        <option value="Government Polytechnic, Palghar">Government Polytechnic, Palghar</option>
+                                        <option value="Government Polytechnic, Dhule">Government Polytechnic, Dhule</option>
+                                        <option value="Government Polytechnic, Nandurbar">Government Polytechnic, Nandurbar</option>
+                                        <option value="Government Polytechnic, Ahmednagar">Government Polytechnic, Ahmednagar</option>
+                                        <option value="Government Polytechnic, Satara">Government Polytechnic, Satara</option>
+                                        <option value="Government Polytechnic, Sangli">Government Polytechnic, Sangli</option>
+                                        <option value="Government Polytechnic, Jalna">Government Polytechnic, Jalna</option>
+                                        <option value="Government Polytechnic, Aurangabad Rural">Government Polytechnic, Aurangabad Rural</option>
+                                        <option value="Other">Other (Please specify)</option>
+                                    </select>
+                                    <div id="register-custom-college-input" class="mt-2" style="display: none;">
+                                        <input type="text" id="register-custom-college-name" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" placeholder="Enter custom college name">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="register-branch" class="block text-sm font-medium">Select Branch</label>
+                                    <select id="register-branch" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm">
+                                        <option value="">Select branch</option>
+                                        <option value="Computer Engineering">Computer Engineering</option>
+                                        <option value="Mechanical Engineering">Mechanical Engineering</option>
+                                        <option value="Electrical Engineering">Electrical Engineering</option>
+                                        <option value="Civil Engineering">Civil Engineering</option>
+                                        <option value="Electronics & Telecommunication">Electronics & Telecommunication</option>
+                                        <option value="Information Technology">Information Technology</option>
+                                        <option value="Chemical Engineering">Chemical Engineering</option>
+                                        <option value="Automobile Engineering">Automobile Engineering</option>
+                                        <option value="Production Engineering">Production Engineering</option>
+                                        <option value="Textile Technology">Textile Technology</option>
+                                        <option value="Metallurgy">Metallurgy</option>
+                                        <option value="Instrumentation">Instrumentation</option>
+                                        <option value="Plastic Technology">Plastic Technology</option>
+                                        <option value="Printing Technology">Printing Technology</option>
+                                        <option value="Other">Other (Please specify)</option>
+                                    </select>
+                                    <div id="register-custom-branch-input" class="mt-2" style="display: none;">
+                                        <input type="text" id="register-custom-branch-name" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" placeholder="Enter custom branch name">
+                                    </div>
+                                </div>
                                 <div><label for="register-name" class="block text-sm font-medium">Full Name</label><input type="text" id="register-name" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" required /></div>
                                 <div><label for="register-email" class="block text-sm font-medium">Email</label><input type="email" id="register-email" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" required /></div>
+                                <div><label for="register-phone" class="block text-sm font-medium">Phone Number</label><input type="tel" id="register-phone" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" placeholder="Enter your phone number" required /></div>
                                 <div><label for="register-password" class="block text-sm font-medium">Create Password</label><input type="password" id="register-password" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" required /></div>
                                 <button type="submit" class="w-full btn-secondary font-bold py-2.5 px-4 rounded-lg">Register</button>
                             </form>
@@ -226,7 +294,7 @@
                 
                 <!-- Right Sidebar: Content is now dynamic -->
                 <aside id="right-sidebar-panel" class="w-full md:w-1/3 lg:w-1/4 mt-4 md:mt-0">
-                    <!-- College panel content is injected here by JavaScript -->
+                    <!-- College panel and announcements panel content is injected here by JavaScript -->
                 </aside>
 
             </div>
@@ -238,9 +306,10 @@
         <header class="bg-white shadow-md p-4 flex justify-between items-center">
             <h2 class="text-2xl font-bold flex items-center" style="color: var(--primary);">
                 <span class="text-3xl mr-3">📖</span>
-                Your Study Portal
+                DigiDiploma - Your Study Portal
             </h2>
-            <div>
+            <div class="flex items-center gap-3">
+                <button id="show-announcements-btn" class="btn-primary font-bold py-2 px-4 rounded-lg text-sm">📢 Announcements</button>
                 <span id="dashboard-user-name" class="text-stone-700 mr-4 font-medium"></span>
                 <button id="logout-btn" class="btn-secondary font-bold py-2 px-4 rounded-lg text-sm">Logout</button>
             </div>
@@ -260,10 +329,43 @@ document.addEventListener('DOMContentLoaded', () => {
             { name: "Government Polytechnic, Pune", logo: "https://www.gppune.ac.in/images/logo2.png", panelImage: "https://www.gppune.ac.in/images/slider/s1.jpg", hindiName: "शासकीय तंत्रनिकेतन, पुणे" },
             { name: "Government Polytechnic, Mumbai" },
             { name: "Government Polytechnic, Nagpur" },
+            { name: "Government Polytechnic, Aurangabad" },
+            { name: "Government Polytechnic, Nashik" },
+            { name: "Government Polytechnic, Kolhapur" },
+            { name: "Government Polytechnic, Solapur" },
+            { name: "Government Polytechnic, Amravati" },
+            { name: "Government Polytechnic, Jalgaon" },
+            { name: "Government Polytechnic, Latur" },
+            { name: "Government Polytechnic, Nanded" },
+            { name: "Government Polytechnic, Beed" },
+            { name: "Government Polytechnic, Osmanabad" },
+            { name: "Government Polytechnic, Parbhani" },
+            { name: "Government Polytechnic, Hingoli" },
+            { name: "Government Polytechnic, Washim" },
+            { name: "Government Polytechnic, Buldhana" },
+            { name: "Government Polytechnic, Akola" },
+            { name: "Government Polytechnic, Yavatmal" },
+            { name: "Government Polytechnic, Wardha" },
+            { name: "Government Polytechnic, Chandrapur" },
+            { name: "Government Polytechnic, Gadchiroli" },
+            { name: "Government Polytechnic, Bhandara" },
+            { name: "Government Polytechnic, Gondia" },
+            { name: "Government Polytechnic, Ratnagiri" },
+            { name: "Government Polytechnic, Sindhudurg" },
+            { name: "Government Polytechnic, Raigad" },
+            { name: "Government Polytechnic, Thane" },
+            { name: "Government Polytechnic, Palghar" },
+            { name: "Government Polytechnic, Dhule" },
+            { name: "Government Polytechnic, Nandurbar" },
+            { name: "Government Polytechnic, Ahmednagar" },
+            { name: "Government Polytechnic, Satara" },
+            { name: "Government Polytechnic, Sangli" },
+            { name: "Government Polytechnic, Jalna" },
+            { name: "Government Polytechnic, Aurangabad Rural" },
             { name: "Cusrow Wadia Institute of Technology, Pune" }
         ],
-        branches: ["Electronics & Telecommunication", "Computer Engineering", "Information Technology", "Mechanical Engineering", "Civil Engineering", "Electrical Engineering", "Automobile Engineering"],
-        branchEmojis: { "Electronics & Telecommunication": "📡", "Computer Engineering": "💻", "Information Technology": "🖥️",  "Mechanical Engineering": "⚙️", "Civil Engineering": "🏗️", "Electrical Engineering": "💡", "Automobile Engineering": "🚗" },
+        branches: ["Computer Engineering", "Mechanical Engineering", "Electrical Engineering", "Civil Engineering", "Electronics & Telecommunication", "Information Technology", "Chemical Engineering", "Automobile Engineering", "Production Engineering", "Textile Technology", "Metallurgy", "Instrumentation", "Plastic Technology", "Printing Technology"],
+        branchEmojis: { "Electronics & Telecommunication": "📡", "Computer Engineering": "💻", "Information Technology": "🖥️",  "Mechanical Engineering": "⚙️", "Civil Engineering": "🏗️", "Electrical Engineering": "💡", "Automobile Engineering": "🚗", "Chemical Engineering": "🧪", "Production Engineering": "🏭", "Textile Technology": "🧵", "Metallurgy": "🔩", "Instrumentation": "📊", "Plastic Technology": "🔬", "Printing Technology": "🖨️" },
         subjects: {
             // NEW Data from PDF for Electronics & Telecommunication
             'Electronics & Telecommunication': {
@@ -349,7 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderRightSidebar(collegeName) {
         let collegeData = db.colleges.find(c => c.name === collegeName && c.logo) || db.colleges[0];
         const panelHTML = `
-            <div class="rounded-lg shadow-md border border-stone-300 overflow-hidden" style="background-color: var(--bg-parchment);">
+            <div id="college-panel" class="rounded-lg shadow-md border border-stone-300 overflow-hidden" style="background-color: var(--bg-parchment);">
                 <div class="text-center p-3 college-panel-header" style="background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('${collegeData.panelImage || ''}');">
                     <img src="${collegeData.logo || ''}" alt="${collegeData.name} Logo" onerror="this.onerror=null;this.src='https://placehold.co/64x64/ffffff/5B21B6?text=Logo';" class="mx-auto h-16 w-16 mb-2 bg-white rounded-full p-1 border-2" style="border-color: var(--support);">
                     <h3 class="font-bold text-white text-md">${collegeData.hindiName || collegeData.name}</h3>
@@ -358,13 +460,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="p-4">
                     <h4 class="font-bold mb-2" style="color: var(--primary);">College Notices</h4>
                     <div class="marquee-container text-sm">
-                        <ul class="marquee">
-                            <li class="notice-item"><a href="#" class="text-stone-700 hover:text-indigo-700"><span>📜</span> CAP Round I Allotment Published <span class="text-red-500 font-bold">New</span></a></li>
-                            <li class="notice-item"><a href="#" class="text-stone-700 hover:text-indigo-700"><span>🗓️</span> Online Registration extended till 30th June</a></li>
-                            <li class="notice-item"><a href="#" class="text-stone-700 hover:text-indigo-700"><span>🏢</span> Facilitation Center list updated.</a></li>
-                            <li class="notice-item"><a href="#" class="text-stone-700 hover:text-indigo-700"><span>✅</span> Provisional Merit List on 5th July.</a></li>
-                            <li class="notice-item"><a href="#" class="text-stone-700 hover:text-indigo-700"><span>🗣️</span> Grievance submission period: 6th-8th July.</a></li>
+                        <ul id="college-notices-list" class="marquee">
+                            <li class="notice-item"><span class="text-stone-500">Loading notices...</span></li>
                         </ul>
+                    </div>
+                    <div class="mt-2 text-xs text-stone-500 text-center">
+                        <span id="notices-last-updated">Source: Government Polytechnic, Awasari (Kh.)</span>
+                        <br>
+                        <button onclick="loadCollegeNotices()" class="text-xs text-blue-600 hover:text-blue-800 underline mt-1">🔄 Refresh</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Announcements Panel (shown when user is logged in) -->
+            <div id="announcements-panel" class="rounded-lg shadow-md border border-stone-300 overflow-hidden hidden" style="background-color: var(--bg-parchment);">
+                <div class="text-center p-3 college-panel-header" style="background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://www.gpawasari.ac.in/images/slider/3.JPG');">
+                    <h3 class="font-bold text-white text-md">📢 Announcements</h3>
+                    <p class="text-xs text-white/90">Latest Updates & Notices</p>
+                </div>
+                <div class="p-4">
+                    <div id="announcements-content" class="space-y-3">
+                        <p class="text-gray-500 text-sm">Loading announcements...</p>
                     </div>
                 </div>
             </div>`;
@@ -524,6 +640,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         appState.currentBranch = data.user.branch;
                         appState.dashboardView = 'semesters';
                         renderDashboard();
+                        // Use setTimeout to ensure dashboard is rendered first
+                        setTimeout(() => {
+                            loadAnnouncements();
+                            showAnnouncementsPanel();
+                        }, 200);
                         return;
                     } else {
                         showModal('Selected account does not have access.');
@@ -540,14 +661,37 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const name = document.getElementById('register-name').value;
             const email = document.getElementById('register-email').value;
+            const phone = document.getElementById('register-phone').value;
             const password = document.getElementById('register-password').value;
-            const college = document.getElementById('register-college').value;
-            const branch = document.getElementById('register-branch').value;
-            if (!name || !email || !password || !college || !branch) {
+            
+            // Get college value (handle custom input)
+            let college = document.getElementById('register-college').value;
+            if (college === 'Other') {
+                college = document.getElementById('register-custom-college-name').value.trim();
+            }
+            
+            // Get branch value (handle custom input)
+            let branch = document.getElementById('register-branch').value;
+            if (branch === 'Other') {
+                branch = document.getElementById('register-custom-branch-name').value.trim();
+            }
+            
+            if (!name || !email || !phone || !password || !college || !branch) {
                 showModal('Please fill in all fields.');
                 return;
             }
-            const payload = { name, email, password, college, branch };
+            
+            // Additional validation for custom inputs
+            if (document.getElementById('register-college').value === 'Other' && !college) {
+                showModal('Please enter a custom college name.');
+                return;
+            }
+            if (document.getElementById('register-branch').value === 'Other' && !branch) {
+                showModal('Please enter a custom branch name.');
+                return;
+            }
+            
+            const payload = { name, email, phone, password, college, branch };
             try {
                 const res = await fetch('/api/auth/register', {
                     method: 'POST',
@@ -570,9 +714,22 @@ document.addEventListener('DOMContentLoaded', () => {
             appState.isAuthenticated = false;
             appState.currentUser = 'Guest';
             renderRightSidebar(db.colleges[0].name);
+            hideAnnouncementsPanel();
             showPage('landing-layout');
             renderCentralView('login-view');
         });
+
+        // Add event listener for announcements button
+        const announcementsBtn = document.getElementById('show-announcements-btn');
+        if (announcementsBtn) {
+            announcementsBtn.addEventListener('click', () => {
+                console.log('Announcements button clicked!');
+                loadAnnouncements();
+                showAnnouncementsPanel();
+            });
+        } else {
+            console.error('Announcements button not found!');
+        }
         
         sidebarToggleBtn.addEventListener('click', toggleSidebar);
         sidebarOverlay.addEventListener('click', toggleSidebar);
@@ -594,12 +751,327 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('register-college').addEventListener('change', (e) => {
             renderRightSidebar(e.target.value);
+            // Reload college notices when college changes
+            setTimeout(() => {
+                loadCollegeNotices();
+            }, 100);
+            
+            // Handle custom college input
+            const customCollegeInput = document.getElementById('register-custom-college-input');
+            if (e.target.value === 'Other') {
+                customCollegeInput.style.display = 'block';
+                document.getElementById('register-custom-college-name').required = true;
+            } else {
+                customCollegeInput.style.display = 'none';
+                document.getElementById('register-custom-college-name').required = false;
+                document.getElementById('register-custom-college-name').value = '';
+            }
+        });
+
+        // Handle custom branch input in registration form
+        document.getElementById('register-branch').addEventListener('change', (e) => {
+            const customBranchInput = document.getElementById('register-custom-branch-input');
+            if (e.target.value === 'Other') {
+                customBranchInput.style.display = 'block';
+                document.getElementById('register-custom-branch-name').required = true;
+            } else {
+                customBranchInput.style.display = 'none';
+                document.getElementById('register-custom-branch-name').required = false;
+                document.getElementById('register-custom-branch-name').value = '';
+            }
         });
 
         modalCloseBtn.addEventListener('click', hideModal);
     }
 
+    // --- ANNOUNCEMENT FUNCTIONS ---
+    
+    // Show announcements panel
+    function showAnnouncementsPanel() {
+        const announcementsPanel = document.getElementById('announcements-panel');
+        const collegePanel = document.getElementById('college-panel');
+        console.log('Showing announcements panel:', announcementsPanel, collegePanel);
+        console.log('Announcements panel classes:', announcementsPanel?.className);
+        console.log('College panel classes:', collegePanel?.className);
+        console.log('Right sidebar panel:', document.getElementById('right-sidebar-panel'));
+        console.log('All divs in right sidebar:', document.querySelectorAll('#right-sidebar-panel > div'));
+        
+        if (announcementsPanel && collegePanel) {
+            collegePanel.classList.add('hidden');
+            announcementsPanel.classList.remove('hidden');
+            console.log('Announcements panel should now be visible');
+        } else {
+            console.error('Could not find announcements panel or college panel');
+            console.log('Available elements in right sidebar:', document.querySelectorAll('#right-sidebar-panel > div'));
+        }
+    }
+
+    // Hide announcements panel
+    function hideAnnouncementsPanel() {
+        const announcementsPanel = document.getElementById('announcements-panel');
+        const collegePanel = document.getElementById('college-panel');
+        if (announcementsPanel && collegePanel) {
+            announcementsPanel.classList.add('hidden');
+            collegePanel.classList.remove('hidden');
+        }
+    }
+
+    // Load announcements from API
+    async function loadAnnouncements() {
+        const container = document.getElementById('announcements-content');
+        if (!container) {
+            console.error('Could not find announcements-content container');
+            return;
+        }
+
+        console.log('Loading announcements...');
+        container.innerHTML = '<p class="text-gray-500 text-sm">Loading announcements...</p>';
+        
+        try {
+            const token = localStorage.getItem('dg_jwt');
+            if (!token) {
+                container.innerHTML = '<p class="text-gray-500 text-sm">Please login to view announcements</p>';
+                return;
+            }
+
+            console.log('Fetching announcements with token:', token ? 'Token exists' : 'No token');
+            const response = await fetch('/api/announcements', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            console.log('Announcements response status:', response.status);
+            if (response.ok) {
+                const announcements = await response.json();
+                console.log('Announcements received:', announcements);
+                
+                if (!announcements.length) {
+                    container.innerHTML = '<p class="text-gray-500 text-sm">No announcements available</p>';
+                    return;
+                }
+
+                const announcementsHTML = announcements.map(a => {
+                    const priorityColors = {
+                        'low': 'bg-green-100 text-green-800',
+                        'medium': 'bg-yellow-100 text-yellow-800',
+                        'high': 'bg-orange-100 text-orange-800',
+                        'critical': 'bg-red-100 text-red-800'
+                    };
+                    const typeColors = {
+                        'general': 'bg-blue-100 text-blue-800',
+                        'important': 'bg-purple-100 text-purple-800',
+                        'urgent': 'bg-red-100 text-red-800',
+                        'maintenance': 'bg-gray-100 text-gray-800'
+                    };
+
+                    const typeIcon = {
+                        'general': '📢',
+                        'important': '⚠️',
+                        'urgent': '🚨',
+                        'maintenance': '🔧'
+                    };
+
+                    return `
+                        <div class="p-3 border border-stone-200 rounded-lg bg-white/50 hover:shadow-sm transition-shadow">
+                            <div class="flex items-start gap-2 mb-2">
+                                <span class="text-lg">${typeIcon[a.type] || '📢'}</span>
+                                <div class="flex-1">
+                                    <h4 class="font-semibold text-sm" style="color: var(--primary);">${a.title}</h4>
+                                    <div class="flex items-center gap-1 mt-1">
+                                        <span class="px-1.5 py-0.5 text-xs rounded ${typeColors[a.type] || 'bg-gray-100 text-gray-800'}">${a.type}</span>
+                                        <span class="px-1.5 py-0.5 text-xs rounded ${priorityColors[a.priority] || 'bg-gray-100 text-gray-800'}">${a.priority}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="text-xs text-stone-600 mb-2">${a.content}</p>
+                            <div class="text-xs text-stone-400">
+                                ${new Date(a.createdAt).toLocaleDateString()}
+                                ${a.expiresAt ? ` • Expires: ${new Date(a.expiresAt).toLocaleDateString()}` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                container.innerHTML = announcementsHTML;
+            } else {
+                container.innerHTML = '<p class="text-red-500 text-sm">Failed to load announcements</p>';
+            }
+        } catch (error) {
+            console.error('Announcements load error:', error);
+            container.innerHTML = '<p class="text-red-500 text-sm">Failed to load announcements</p>';
+        }
+    }
+
+    // Initialize Socket.IO for real-time announcements
+    let socket = null;
+    
+    function initializeSocket() {
+        socket = io();
+        
+        socket.on('connect', () => {
+            console.log('Connected to server for announcements');
+        });
+
+        socket.on('new-announcement', (data) => {
+            showModal(`New announcement: ${data.title}`);
+            if (appState.isAuthenticated) {
+                loadAnnouncements();
+            }
+        });
+
+        socket.on('announcement-updated', (data) => {
+            if (appState.isAuthenticated) {
+                loadAnnouncements();
+            }
+        });
+
+        socket.on('announcement-deleted', (data) => {
+            if (appState.isAuthenticated) {
+                loadAnnouncements();
+            }
+        });
+    }
+
+    // Initialize socket connection
+    initializeSocket();
+
+    // --- COLLEGE NOTICES FUNCTIONS ---
+    
+    // Load college notices from API
+    async function loadCollegeNotices() {
+        const noticesList = document.getElementById('college-notices-list');
+        const lastUpdated = document.getElementById('notices-last-updated');
+        
+
+        
+        if (!noticesList) {
+            console.error('Could not find college-notices-list container');
+            return;
+        }
+
+        console.log('Loading college notices...');
+        noticesList.innerHTML = '<li class="notice-item"><span class="text-stone-500">Loading notices...</span></li>';
+        
+        try {
+            const response = await fetch('/api/notices');
+            console.log('College notices response status:', response.status);
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('College notices received:', data);
+                if (!data.notices || !data.notices.length) {
+                    noticesList.innerHTML = '<li class="notice-item"><span class="text-stone-500">No notices available</span></li>';
+                    return;
+                }
+
+                const noticesHTML = data.notices.map(notice => {
+                    const typeIcons = {
+                        'urgent': '🚨',
+                        'important': '⚠️',
+                        'general': '📢'
+                    };
+                    
+                    const typeColors = {
+                        'urgent': 'text-red-600',
+                        'important': 'text-orange-600',
+                        'general': 'text-blue-600'
+                    };
+
+                    const newBadge = notice.isNew ? '<span class="text-red-500 font-bold ml-1">New</span>' : '';
+                    const icon = typeIcons[notice.type] || '📜';
+                    const colorClass = typeColors[notice.type] || 'text-stone-700';
+                    
+                    return `<li class="notice-item">
+                        <a href="${notice.link}" class="${colorClass} hover:text-indigo-700" target="_blank" title="Click to visit ${data.source}">
+                            <span>${icon}</span> ${notice.title} ${newBadge}
+                        </a>
+                    </li>`;
+                }).join('');
+
+
+                noticesList.innerHTML = noticesHTML;
+                
+                // Update last updated time
+                if (data.lastUpdated) {
+                    const date = new Date(data.lastUpdated);
+                    lastUpdated.textContent = `Last updated: ${date.toLocaleString()} | Source: ${data.source}`;
+                }
+            } else {
+                noticesList.innerHTML = '<li class="notice-item"><span class="text-red-500">Failed to load notices</span></li>';
+            }
+        } catch (error) {
+            console.error('College notices load error:', error);
+            noticesList.innerHTML = '<li class="notice-item"><span class="text-red-500">Failed to load notices</span></li>';
+        }
+    }
+
+    // Refresh college notices (for admin use)
+    async function refreshCollegeNotices() {
+        try {
+            const token = localStorage.getItem('dg_jwt');
+            if (!token) {
+                console.error('No authentication token found');
+                return;
+            }
+
+            const response = await fetch('/api/notices/refresh', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Notices refreshed:', result);
+                showModal(`Notices refreshed successfully! Found ${result.count} notices.`);
+                loadCollegeNotices(); // Reload the display
+            } else {
+                showModal('Failed to refresh notices');
+            }
+        } catch (error) {
+            console.error('Error refreshing notices:', error);
+            showModal('Error refreshing notices');
+        }
+    }
+
+    // Add global functions for testing
+    window.testAnnouncements = function() {
+        console.log('Testing announcements...');
+        loadAnnouncements();
+        showAnnouncementsPanel();
+    };
+
+    window.testCollegeNotices = function() {
+        console.log('Testing college notices...');
+        loadCollegeNotices();
+    };
+
+    window.refreshCollegeNotices = function() {
+        console.log('Refreshing college notices...');
+        refreshCollegeNotices();
+    };
+
+    window.loadCollegeNotices = loadCollegeNotices;
+
+
+
+    // Add event delegation for announcements button (in case it's added dynamically)
+    document.addEventListener('click', function(e) {
+        if (e.target && e.target.id === 'show-announcements-btn') {
+            console.log('Announcements button clicked via event delegation!');
+            loadAnnouncements();
+            showAnnouncementsPanel();
+        }
+    });
+
     init();
+    
+    // Load college notices after initialization
+    setTimeout(() => {
+        loadCollegeNotices();
+    }, 100);
 });
 </script>
 </body>

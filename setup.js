@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('./models/User');
+const Announcement = require('./models/Announcement');
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/digital-gurukul';
 
@@ -24,13 +25,7 @@ const subscriptionSchema = new mongoose.Schema({
 });
 const Subscription = mongoose.model('Subscription', subscriptionSchema);
 
-// Announcement schema
-const announcementSchema = new mongoose.Schema({
-  title: String,
-  content: String,
-  createdAt: { type: Date, default: Date.now }
-});
-const Announcement = mongoose.model('Announcement', announcementSchema);
+
 
 // Quiz schema
 const quizSchema = new mongoose.Schema({
@@ -53,7 +48,7 @@ async function setup() {
 
   // Create initial admin user
   const adminEmail = 'admin@digitalgurukul.com';
-  const adminPassword = 'admin123';
+  const adminPassword = 'Admin@8956';
   await User.deleteMany({ email: adminEmail }); // Remove any existing admin user
   let admin = new User({
     name: 'Admin',
@@ -74,7 +69,14 @@ async function setup() {
   await Material.deleteMany({ title: 'dummy' });
   await Subscription.create({ user: admin._id, status: 'inactive', startDate: new Date(), endDate: new Date() });
   await Subscription.deleteMany({ status: 'inactive' });
-  await Announcement.create({ title: 'dummy', content: 'dummy' });
+  await Announcement.create({ 
+    title: 'dummy', 
+    content: 'dummy',
+    createdBy: admin._id,
+    type: 'general',
+    priority: 'medium',
+    targetAudience: 'all'
+  });
   await Announcement.deleteMany({ title: 'dummy' });
   await Quiz.create({ title: 'dummy', branch: 'dummy', semester: 'dummy', questions: [] });
   await Quiz.deleteMany({ title: 'dummy' });

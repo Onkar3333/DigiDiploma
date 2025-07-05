@@ -26,11 +26,11 @@ const userSchema = new mongoose.Schema({
     },
     college: {
         type: String,
-        required: true
+        default: ''
     },
     branch: {
         type: String,
-        required: true
+        default: ''
     },
     applicationId: {
         type: String,

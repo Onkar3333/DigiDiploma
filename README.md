@@ -1,4 +1,4 @@
-# Digital Gurukul - Student Portal
+# DigiDiploma - Student Portal
 
 A comprehensive educational portal with admin and student dashboards, featuring real-time updates, material management, and subscription systems.
 
@@ -58,7 +58,7 @@ A comprehensive educational portal with admin and student dashboards, featuring 
 1. **Clone or download the project**
    ```bash
    git clone <repository-url>
-   cd digital-gurukul-portal
+   cd digidiploma-portal
    ```
 
 2. **Install dependencies**
@@ -70,7 +70,7 @@ A comprehensive educational portal with admin and student dashboards, featuring 
    - Copy `.env.example` to `.env`
    - Update the values:
    ```env
-   MONGODB_URI=mongodb://localhost:27017/digital-gurukul
+   MONGODB_URI=mongodb://localhost:27017/digidiploma
    JWT_SECRET=your-super-secret-jwt-key
    PORT=3000
    ```
@@ -106,7 +106,7 @@ A comprehensive educational portal with admin and student dashboards, featuring 
 2. Click "New Candidate Registration"
 3. Fill in the form with admin details:
    - Name: Admin User
-   - Email: admin@digitalgurukul.com
+   - Email: admin@digidiploma.com
    - Password: admin123
    - College: Any college
    - Branch: Any branch
@@ -119,7 +119,7 @@ curl -X POST http://localhost:3000/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Admin User",
-    "email": "admin@digitalgurukul.com",
+    "email": "admin@digidiploma.com",
     "password": "admin123",
     "college": "Government Polytechnic, Pune",
     "branch": "Computer Engineering",
@@ -174,7 +174,7 @@ curl -X POST http://localhost:3000/api/auth/register \
 ## File Structure
 
 ```
-digital-gurukul-portal/
+digidiploma-portal/
 ├── public/                 # Static files
 │   ├── index.html         # Main portal
 │   ├── admin.html         # Admin dashboard

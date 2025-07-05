@@ -2,6 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
+const { logUserRegistration, logUserLogin } = require('../utils/logger');
 const router = express.Router();
 
 // Middleware to verify JWT token
@@ -34,6 +35,7 @@ const requireAdmin = (req, res, next) => {
 router.post('/register', [
     body('name').trim().isLength({ min: 2 }).withMessage('Name must be at least 2 characters'),
     body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
+    body('phone').trim().notEmpty().withMessage('Phone number is required'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
     body('college').trim().notEmpty().withMessage('College is required'),
     body('branch').trim().notEmpty().withMessage('Branch is required'),
@@ -45,7 +47,7 @@ router.post('/register', [
             return res.status(400).json({ errors: errors.array() });
         }
 
-        const { name, email, password, college, branch, role = 'student', applicationId } = req.body;
+        const { name, email, phone, password, college, branch, role = 'student', applicationId } = req.body;
 
         // Check if user already exists
         let query = [{ email }];
@@ -61,11 +63,14 @@ router.post('/register', [
         }
 
         // Create new user
-        const userData = { name, email, password, college, branch, role };
+        const userData = { name, email, phone, password, college, branch, role };
         if (applicationId) userData.applicationId = applicationId;
         const user = new User(userData);
 
         await user.save();
+
+        // Log the user registration
+        await logUserRegistration(req, user);
 
         // Generate JWT token
         const token = jwt.sign(
@@ -124,6 +129,9 @@ router.post('/login', [
         // Update last login
         user.lastLogin = new Date();
         await user.save();
+
+        // Log the user login
+        await logUserLogin(req, user);
 
         // Generate JWT token
         const token = jwt.sign(

@@ -24,7 +24,8 @@ app.use(helmet.contentSecurityPolicy({
       "'self'",
       "'unsafe-inline'",
       "https://cdn.tailwindcss.com",
-      "https://cdn.socket.io"
+      "https://cdn.socket.io",
+      "https://cdn.jsdelivr.net"
     ],
     styleSrc: [
       "'self'",
@@ -41,7 +42,9 @@ app.use(helmet.contentSecurityPolicy({
       "'self'",
       "data:",
       "https://www.publicdomainpictures.net",
-      "https://www.gpawasari.ac.in"
+      "https://www.gpawasari.ac.in",
+      "https://*",
+      "*"
     ],
     connectSrc: ["'self'"],
     objectSrc: ["'none'"],
@@ -86,7 +89,7 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/digital-gurukul', {
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/digitalgurukul', {
     useNewUrlParser: true,
     useUnifiedTopology: true
 })
@@ -112,6 +115,7 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/student', require('./routes/student'));
 app.use('/api/materials', require('./routes/materials'));
 app.use('/api/announcements', require('./routes/announcements'));
+app.use('/api/notices', require('./routes/notices'));
 app.use('/api/quizzes', require('./routes/quizzes'));
 app.use('/api/subscriptions', require('./routes/subscriptions'));
 
