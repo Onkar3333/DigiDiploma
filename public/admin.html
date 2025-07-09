@@ -100,6 +100,17 @@
             border-color: var(--primary);
             background-color: rgba(91, 33, 182, 0.2);
         }
+
+        html, body {
+          max-width: 100vw;
+          overflow-x: hidden;
+          box-sizing: border-box;
+        }
+        *,
+        *::before,
+        *::after {
+          box-sizing: inherit;
+        }
     </style>
 </head>
 <body class="text-stone-800">
@@ -183,50 +194,6 @@
         </div>
     </div>
 
-    <!-- Admin Login Form -->
-    <div id="login-page" class="page active">
-        <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-            <div class="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-2xl">
-                <div class="text-center">
-                    <div class="h-16 w-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <span class="text-2xl font-bold text-white">DD</span>
-                    </div>
-                    <h2 class="text-3xl font-bold text-gray-900 mb-2">Admin Login</h2>
-                    <p class="text-gray-600">DigiDiploma Admin Portal</p>
-                </div>
-                
-                <form id="admin-login-form" class="space-y-6">
-                    <div>
-                        <label for="admin-email" class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-                        <input type="email" id="admin-email" name="email" required 
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                               placeholder="admin@digidiploma.com">
-                    </div>
-                    
-                    <div>
-                        <label for="admin-password" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                        <input type="password" id="admin-password" name="password" required 
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                               placeholder="Enter your password">
-                    </div>
-                    
-                    <div>
-                        <button type="submit" 
-                                class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
-                            Sign In
-                        </button>
-                    </div>
-                </form>
-                
-                <div class="text-center">
-                    <p class="text-sm text-gray-600">
-                        Access restricted to authorized administrators only
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Admin Dashboard -->
     <div id="admin-dashboard" class="page" style="display: none;">
         <!-- Header -->
@@ -297,6 +264,12 @@
                                 <span class="mr-3">📈</span> Analytics
                             </button>
                         </li>
+                        <!-- Add to sidebar navigation -->
+                        <li>
+                            <button data-page="download-logs-page" class="nav-btn w-full text-left p-3 rounded-lg hover:bg-amber-100 font-medium flex items-center">
+                                <span class="mr-3">⬇️</span> Download Logs
+                            </button>
+                        </li>
                     </ul>
                 </nav>
             </aside>
@@ -354,7 +327,7 @@
                                 <h3 class="text-xl font-bold" style="color: var(--primary);">Recent Logs</h3>
                                 <button onclick="createTestLogs()" class="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">Test Logs</button>
                             </div>
-                            <div id="recent-logs" class="space-y-3">
+                            <div id="recent-logs" class="space-y-2 border rounded-lg bg-gradient-to-r from-amber-50 to-purple-50 p-2 max-h-72 overflow-y-auto shadow-inner">
                                 <p class="text-gray-500">Loading...</p>
                             </div>
                         </div>
@@ -898,6 +871,29 @@
         </div>
     </div>
 
+    <!-- Edit Material Modal -->
+    <div id="edit-material-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-box" style="max-width:500px;">
+        <h3 class="text-2xl font-bold mb-4 font-decorative" style="color: var(--primary);">Edit Material</h3>
+        <form id="edit-material-form" class="space-y-4"></form>
+      </div>
+    </div>
+
+    <!-- Add new page for download logs -->
+    <div id="download-logs-page" class="page" style="display:none;">
+        <h2 class="text-3xl font-bold mb-6 font-decorative" style="color: var(--primary);">Material Download Logs</h2>
+        <form id="download-logs-filter" class="flex flex-wrap gap-4 mb-4">
+            <input type="text" id="filter-user" placeholder="User name or email" class="px-3 py-2 border rounded-md" />
+            <input type="text" id="filter-material" placeholder="Material title" class="px-3 py-2 border rounded-md" />
+            <input type="date" id="filter-start-date" class="px-3 py-2 border rounded-md" />
+            <input type="date" id="filter-end-date" class="px-3 py-2 border rounded-md" />
+            <button type="submit" class="btn-primary px-4 py-2 rounded-lg">Filter</button>
+        </form>
+        <div id="download-logs-content" class="bg-white rounded-lg shadow-md p-4 overflow-x-auto">
+            <p class="text-gray-500">Loading download logs...</p>
+        </div>
+    </div>
+
     <script>
         // Global variables
         let currentUser = null;
@@ -917,7 +913,7 @@
             if (token) {
                 fetchUserProfile(token);
             } else {
-                showPage('login-page');
+                window.location.href = '/'; // Redirect to main login page
             }
         }
 
@@ -1087,8 +1083,7 @@
             localStorage.removeItem('dg_jwt');
             localStorage.removeItem('dg_user');
             currentUser = null;
-            showPage('login-page');
-            document.getElementById('admin-login-form').reset();
+            window.location.href = '/'; // Redirect to main login page
         }
 
         // Fetch user profile
@@ -1131,67 +1126,66 @@
 
         // Load dashboard data
         async function loadDashboardData() {
-            await Promise.all([
-                loadStats(),
-                loadRecentLogs()
-            ]);
-        }
-
-        // Load statistics
-        async function loadStats() {
             try {
-                const response = await fetch(`${API_BASE}/admin/stats`, {
+                const token = localStorage.getItem('dg_jwt');
+                if (!token) {
+                    showNotification('No authentication token found');
+                    return;
+                }
+                // Load user statistics
+                const userResponse = await fetch(`${API_BASE}/admin/stats`, {
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('dg_jwt')}`
+                        'Authorization': `Bearer ${token}`
                     }
                 });
-
-                if (response.ok) {
-                    const stats = await response.json();
+                if (userResponse.ok) {
+                    const stats = await userResponse.json();
                     document.getElementById('total-students').textContent = stats.totalStudents || 0;
                     document.getElementById('active-subscriptions').textContent = stats.activeSubscriptions || 0;
                     document.getElementById('total-materials').textContent = stats.totalMaterials || 0;
                     document.getElementById('quiz-participation').textContent = stats.quizParticipation || 0;
                 }
-            } catch (error) {
-                console.error('Stats load error:', error);
-            }
-        }
-
-        // Load recent logs
-        async function loadRecentLogs() {
-            try {
-                const response = await fetch(`${API_BASE}/admin/logs`, {
+                // Load recent logs
+                const logsResponse = await fetch(`${API_BASE}/admin/logs`, {
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('dg_jwt')}`
+                        'Authorization': `Bearer ${token}`
                     }
                 });
-
-                if (response.ok) {
-                    const logs = await response.json();
+                if (logsResponse.ok) {
+                    const logs = await logsResponse.json();
+                    console.log('Logs received:', logs); // Debug log
                     const logsContainer = document.getElementById('recent-logs');
-                    
-                    if (logs.length === 0) {
-                        logsContainer.innerHTML = '<p class="text-gray-500">No recent activity</p>';
+                    console.log('Logs container:', logsContainer); // Debug log
+                    if (!logsContainer) {
+                        console.error('Could not find recent-logs container!');
                         return;
                     }
-
-                    logsContainer.innerHTML = logs.map(log => `
-                        <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
-                            <div>
-                                <p class="font-medium">${log.action}</p>
-                                <p class="text-sm text-gray-600">${new Date(log.timestamp).toLocaleString()}</p>
+                    // Only show the 5 most recent logs
+                    const lastLogs = logs.slice(0, 5);
+                    if (lastLogs && lastLogs.length > 0) {
+                        const logsHTML = lastLogs.map(log => `
+                            <div class="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
+                                <div class="flex-1">
+                                    <span class="text-sm font-medium">${log.action}</span>
+                                    <span class="text-xs text-gray-500 ml-2">by ${log.user}</span>
+                                </div>
+                                <span class="text-xs text-gray-500">${new Date(log.timestamp).toLocaleString()}</span>
                             </div>
-                            <span class="text-xs text-gray-500">${log.user}</span>
-                        </div>
-                    `).join('');
+                        `).join('');
+                        console.log('Generated HTML:', logsHTML); // Debug log
+                        logsContainer.innerHTML = logsHTML;
+                        console.log('HTML set successfully'); // Debug log
+                    } else {
+                        logsContainer.innerHTML = '<p class="text-gray-500 text-sm">No recent activity</p>';
+                    }
+                } else {
+                    console.error('Failed to fetch logs:', logsResponse.status);
                 }
             } catch (error) {
-                console.error('Logs load error:', error);
+                console.error('Error loading dashboard data:', error);
+                showNotification('Failed to load dashboard data');
             }
         }
-
-
 
         // Update active navigation
         function updateActiveNav(activeBtn) {
@@ -1259,12 +1253,10 @@
         // Render materials
         function renderMaterials(materials) {
             const container = document.getElementById('materials-content');
-            
             if (materials.length === 0) {
                 container.innerHTML = '<p class="text-gray-500">No materials found</p>';
                 return;
             }
-
             container.innerHTML = `
                 <div class="overflow-x-auto">
                     <table class="w-full">
@@ -1286,9 +1278,13 @@
                                     <td class="p-2">${material.subject}</td>
                                     <td class="p-2">${material.category}</td>
                                     <td class="p-2">${material.downloadCount}</td>
-                                    <td class="p-2">
-                                        <button onclick="editMaterial('${material._id}')" class="text-blue-600 hover:text-blue-800 mr-2">Edit</button>
-                                        <button onclick="deleteMaterial('${material._id}')" class="text-red-600 hover:text-red-800">Delete</button>
+                                    <td class="p-2 flex flex-wrap gap-2">
+                                        <button onclick="window.editMaterial('${material._id}')" class="text-blue-600 hover:text-blue-800 mr-2">Edit</button>
+                                        <button onclick="window.deleteMaterial('${material._id}')" class="text-red-600 hover:text-red-800 mr-2">Delete</button>
+                                        ${material.type === 'video' || material.type === 'link' ?
+                                            `<a href="${material.fileUrl}" target="_blank" class="text-green-600 hover:text-green-800 mr-2">View</a>` :
+                                            `<a href="${material.fileUrl}" download class="text-green-600 hover:text-green-800 mr-2">Download</a>`
+                                        }
                                     </td>
                                 </tr>
                             `).join('')}
@@ -1379,18 +1375,32 @@
             const container = document.getElementById('subscriptions-content');
             container.innerHTML = '<p class="text-gray-500">Loading subscriptions...</p>';
             try {
+                const token = localStorage.getItem('dg_jwt');
                 const response = await fetch(`${API_BASE}/admin/subscriptions`, {
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('dg_jwt')}`
+                        'Authorization': `Bearer ${token}`
                     }
                 });
                 if (response.ok) {
                     const subscriptions = await response.json();
-                    if (!subscriptions.length) {
+                    if (subscriptions.length > 0) {
+                        let tableRows = subscriptions.map(sub => {
+                            return `<tr class="border-b hover:bg-gray-50">
+                                <td class="p-2">${sub.user && sub.user.name ? sub.user.name : 'N/A'}</td>
+                                <td class="p-2">${sub.plan || '-'}</td>
+                                <td class="p-2">${sub.status}</td>
+                                <td class="p-2">${sub.startDate ? new Date(sub.startDate).toLocaleDateString() : '-'}</td>
+                                <td class="p-2">${sub.endDate ? new Date(sub.endDate).toLocaleDateString() : '-'}</td>
+                                <td class="p-2">
+                                    <button class="text-blue-600 hover:text-blue-800" onclick="editSubscription('${sub._id}')">Edit</button>
+                                    <button class="text-red-600 hover:text-red-800" onclick="deleteSubscription('${sub._id}')">Delete</button>
+                                </td>
+                            </tr>`;
+                        }).join('');
+                        container.innerHTML = `<div class="overflow-x-auto"><table class="w-full"><thead><tr class="border-b"><th class="text-left p-2">User</th><th class="text-left p-2">Plan</th><th class="text-left p-2">Status</th><th class="text-left p-2">Start</th><th class="text-left p-2">End</th><th class="text-left p-2">Actions</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
+                    } else {
                         container.innerHTML = '<p class="text-gray-500">No subscriptions found</p>';
-                        return;
                     }
-                    container.innerHTML = `<div class="overflow-x-auto"><table class="w-full"><thead><tr class="border-b"><th class="text-left p-2">User</th><th class="text-left p-2">Status</th><th class="text-left p-2">Start</th><th class="text-left p-2">End</th><th class="text-left p-2">Actions</th></tr></thead><tbody>${subscriptions.map(sub => `<tr class="border-b hover:bg-gray-50"><td class="p-2">${sub.user?.name || 'N/A'}</td><td class="p-2">${sub.status}</td><td class="p-2">${new Date(sub.startDate).toLocaleDateString()}</td><td class="p-2">${new Date(sub.endDate).toLocaleDateString()}</td><td class="p-2"><button class="text-blue-600 hover:text-blue-800">Edit</button></td></tr>`).join('')}</tbody></table></div>`;
                 } else {
                     container.innerHTML = '<p class="text-red-500">Failed to load subscriptions</p>';
                 }
@@ -1526,13 +1536,39 @@
         }
 
         // Global functions for table actions
-        window.editMaterial = function(id) {
-            showModal('Edit material functionality coming soon...');
+        window.editMaterial = async function(id) {
+            // Fetch material details
+            const token = localStorage.getItem('dg_jwt');
+            try {
+                const res = await fetch(`${API_BASE}/materials/${id}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error('Failed to fetch material');
+                const material = await res.json();
+                // Show a modal with material details for editing
+                showEditMaterialModal(material);
+            } catch (err) {
+                showNotification('Failed to load material details');
+            }
         };
 
-        window.deleteMaterial = function(id) {
-            if (confirm('Are you sure you want to delete this material?')) {
-                showModal('Delete material functionality coming soon...');
+        window.deleteMaterial = async function(id) {
+            if (!confirm('Are you sure you want to delete this material?')) return;
+            const token = localStorage.getItem('dg_jwt');
+            try {
+                const res = await fetch(`${API_BASE}/materials/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showNotification(data.message || 'Material deleted');
+                    loadMaterials();
+                } else {
+                    showNotification(data.error || 'Failed to delete material');
+                }
+            } catch (err) {
+                showNotification('Failed to delete material');
             }
         };
 
@@ -1667,32 +1703,36 @@
             const semester = document.getElementById('material-semester').value;
             const subject = document.getElementById('material-subject').value;
             const category = document.getElementById('material-category').value;
-            let fileUrl = '';
-            let fileSize = 0;
-            let thumbnail = '';
+
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('type', type);
+            formData.append('branch', branch);
+            formData.append('semester', semester);
+            formData.append('subject', subject);
+            formData.append('category', category);
+
             if (type === 'video' || type === 'link') {
-                fileUrl = document.getElementById('material-link').value;
+                formData.append('link', document.getElementById('material-link').value);
             } else {
                 const fileInput = document.getElementById('material-file');
                 if (fileInput.files.length > 0) {
-                    // For demo: just use file name as URL (in real app, upload to server/cloud)
-                    fileUrl = '/uploads/' + fileInput.files[0].name;
-                    fileSize = fileInput.files[0].size;
+                    formData.append('file', fileInput.files[0]);
                 } else {
                     showNotification('Please select a file to upload.');
                     return;
                 }
             }
-            const payload = { title, type, branch, semester, subject, category, fileUrl, fileSize, thumbnail };
+
             try {
                 const token = localStorage.getItem('dg_jwt');
                 const res = await fetch(`${API_BASE}/materials`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
+                        // Do NOT set Content-Type; browser will set it for FormData
                     },
-                    body: JSON.stringify(payload)
+                    body: formData
                 });
                 const data = await res.json();
                 if (res.ok) {
@@ -1708,63 +1748,261 @@
         });
 
         // Branch and subject options
-        const branches = [
-            "Electronics & Telecommunication",
-            "Computer Engineering",
-            "Information Technology",
-            "Mechanical Engineering",
-            "Civil Engineering",
-            "Electrical Engineering",
-            "Automobile Engineering"
-        ];
-        const subjectsByBranch = {
-            "Electronics & Telecommunication": [
-                'Communication Skills', 'Engineering Graphics', 'Basic Science (Physics & Chemistry)', 'Fundamentals of ICT', 'Engineering Workshop',
-                'Applied Mathematics', 'Basic Electronics', 'Elements of Electrical Engineering', 'Electronic Materials & Components', 'Professional Communication', 'Social and Life Skills', 'Electronics Workshop Practice', 'Programming in C Language',
-                'Essence of Indian Constitution', 'Basic Python Programming', 'Analog Electronics', 'Digital Techniques', 'Electrical Circuits & Networks', 'Principles of Electronic Communication', 'Electronics Measurements & Instrumentation',
-                'Environmental Education and Sustainability', 'Microcontroller & Applications', 'Consumer Electronics', 'Digital Communication', 'Basic Power Electronics', 'Electronic Equipment Maintenance & Simulation', 'Open Elective I',
-                'Entrepreneurship Development and Startups', 'Embedded System', 'Mobile & Wireless Communication', 'Seminar and Project Initiation', 'Internship', 'IOT Applications / Microwave Eng.',
-                'Management', 'Emerging Trends in Electronics', 'Computer Network & Data Communication', 'Optical Networking and Satellite Communication', 'Capstone Project', 'Drone Tech / Control Sys / VLSI'
-            ],
-            "Computer Engineering": [
-                'Basic Mathematics', 'Programming in C', 'Basic Electronics', 'Computer Fundamentals',
-                'Applied Mathematics', 'Data Structures', 'Digital Electronics', 'Web Programming',
-                'Database Management', 'Computer Graphics', 'OOP with C++',
-                'Java Programming', 'Operating Systems', 'Computer Networks',
-                'Software Engineering', 'Advanced Java', 'AI Concepts',
-                'Mobile Application Dev', 'Project Management', 'Cyber Security'
-            ],
-            "Mechanical Engineering": [
-                'Engineering Mechanics', 'Thermodynamics', 'Workshop Practice',
-                'Strength of Materials', 'Fluid Mechanics', 'Theory of Machines'
-            ],
-            "Civil Engineering": [],
-            "Electrical Engineering": [],
-            "Automobile Engineering": [],
-            "Information Technology": []
+        const branchSemesterSubject = {
+            'Computer Engineering': {
+                'Semester 1': [
+                    '311302 – Basic Mathematics',
+                    '311305 – Basic Science (Physics & Chemistry)',
+                    '311303 – Communication Skills (English)',
+                    'Engineering Graphics (311008)',
+                    'Engineering Workshop Practice',
+                    '311001 – Fundamentals of ICT',
+                    '311003 – Yoga & Meditation'
+                ],
+                'Semester 2': [
+                    '312301 – Applied Mathematics',
+                    '312308 – Applied Science',
+                    '312002 – Professional Communication',
+                    'Programming in C (312009)',
+                    '312001 – Linux Basics',
+                    'Web Page Design (312004)'
+                ],
+                'Semester 3': [
+                    'Data Structures (C)',
+                    'DBMS',
+                    'Digital Techniques',
+                    'OOP (C++)',
+                    'Computer Graphics',
+                    'Essence of Indian Constitution'
+                ],
+                'Semester 4': [
+                    'Java',
+                    'Python',
+                    'Data Communication & Networks',
+                    'Microprocessor Programming',
+                    'UI/UX Design',
+                    'Environmental Education & Sustainability'
+                ],
+                'Semester 5': [
+                    'Advanced Java',
+                    'Cloud Computing',
+                    'Software Engineering',
+                    'Entrepreneurship & Startups',
+                    'Seminar & Project Initiation',
+                    'Internship'
+                ],
+                'Semester 6': [
+                    'Capstone Project',
+                    'Mobile Application Development',
+                    'Network Security',
+                    'Data Warehousing',
+                    'Management',
+                    'Emerging Trends'
+                ]
+            },
+            'Information Technology': {
+                'Semester 1': [
+                    '311302 – Basic Mathematics',
+                    '311305 – Basic Science (Physics & Chemistry)',
+                    '311303 – Communication Skills (English)',
+                    'Engineering Graphics (311008)',
+                    'Engineering Workshop Practice',
+                    '311001 – Fundamentals of ICT',
+                    '311003 – Yoga & Meditation'
+                ],
+                'Semester 2': [
+                    '312301 – Applied Mathematics',
+                    '312308 – Applied Science',
+                    '312002 – Professional Communication',
+                    'Programming in C (312009)',
+                    '312001 – Linux Basics',
+                    'Web Page Design (312004)'
+                ],
+                'Semester 3': [
+                    'Data Structures (C)',
+                    'DBMS',
+                    'Digital Techniques',
+                    'OOP (C++)',
+                    'Applied Multimedia',
+                    'Essence of Indian Constitution'
+                ],
+                'Semester 4': [
+                    'Java',
+                    'Python',
+                    'Data Communication & Networks',
+                    'Microprocessor Programming',
+                    'UI/UX Design',
+                    'Environmental Education & Sustainability'
+                ],
+                'Semester 5': [
+                    'Advanced Java',
+                    'Cloud Computing',
+                    'Software Engineering',
+                    'Entrepreneurship & Startups',
+                    'Seminar & Project Initiation',
+                    'Internship'
+                ],
+                'Semester 6': [
+                    'Capstone Project',
+                    'Mobile Application Development',
+                    'Network Security',
+                    'Data Warehousing',
+                    'Management',
+                    'Emerging Trends'
+                ]
+            },
+            'Electronics & Telecommunication': {
+                'Semester 1': [
+                    '311302 – Basic Mathematics',
+                    '311305 – Basic Science (Physics & Chemistry)',
+                    '311303 – Communication Skills (English)',
+                    'Engineering Graphics (311006)',
+                    'Engineering Workshop Practice',
+                    '311001 – Fundamentals of ICT',
+                    '311003 – Yoga & Meditation'
+                ],
+                'Semester 2': [
+                    '312301 – Applied Mathematics',
+                    '312308 – Applied Science',
+                    '312002 – Professional Communication',
+                    'Programming in C (312009)',
+                    'Basic Electronics (312302)',
+                    'Elements of Electrical Engineering (312314+312315)'
+                ],
+                'Semester 3': [
+                    'Digital Techniques',
+                    'Analog Electronics',
+                    'Circuits & Networks',
+                    'Electronic Communication',
+                    'Python',
+                    'Instrumentation',
+                    'Essence of Indian Constitution'
+                ],
+                'Semester 4': [
+                    'Digital Communication',
+                    'Consumer Electronics',
+                    'Microcontrollers',
+                    'Power Electronics',
+                    'Equipment Maintenance',
+                    'Environmental Education & Sustainability'
+                ],
+                'Semester 5': [
+                    'Embedded System',
+                    'Mobile & Wireless Communication',
+                    'Seminar & Project Initiation',
+                    'Internship',
+                    'IOT Applications / Microwave Eng.',
+                    'Entrepreneurship & Startups'
+                ],
+                'Semester 6': [
+                    'Capstone Project',
+                    'Management',
+                    'Emerging Trends in Electronics',
+                    'Computer Network & Data Communication',
+                    'Optical Networking and Satellite Communication',
+                    'Drone Tech / Control Sys / VLSI'
+                ]
+            },
+            'Mechanical Engineering': {
+                'Semester 1': [
+                    '311302 – Basic Mathematics',
+                    '311305 – Basic Science (Physics & Chemistry)',
+                    '311303 – Communication Skills (English)',
+                    'Engineering Graphics (311006)',
+                    'Engineering Workshop Practice',
+                    '311001 – Fundamentals of ICT',
+                    '311003 – Yoga & Meditation'
+                ],
+                'Semester 2': [
+                    '312301 – Applied Mathematics',
+                    '312308 – Applied Science',
+                    '312002 – Professional Communication',
+                    'Basic Electrical/Electronics (312302/312314+312315)',
+                    'Strength of Materials',
+                    'Fluid Mechanics & Machinery',
+                    'Theory of Machines'
+                ],
+                'Semester 3': [
+                    'Strength of Materials',
+                    'Fluid Mechanics & Machinery',
+                    'Thermal Engineering',
+                    'Production Drawing',
+                    'Basic Electrical/ Electronics',
+                    'CAD',
+                    'Python'
+                ],
+                'Semester 4': [
+                    'Theory of Machines',
+                    'Metrology & Measurement',
+                    'Mechanical Materials',
+                    'Production Processes',
+                    'Mechatronics/CNC',
+                    'Environmental Education & Sustainability',
+                    'Entrepreneurship'
+                ],
+                'Semester 5': [
+                    'Power Engineering & Refrigeration',
+                    'Advanced Manufacturing',
+                    'Seminar & Project Initiation',
+                    'Internship',
+                    'Entrepreneurship & Startups'
+                ],
+                'Semester 6': [
+                    'Capstone Project',
+                    'Hydraulics & Pneumatics',
+                    'Automotive',
+                    'CIM',
+                    'Renewable Energy',
+                    'Industrial Engineering'
+                ]
+            },
+            'Civil Engineering': {},
+            'Electrical Engineering': {},
+            'Automobile Engineering': {}
         };
-        // Populate branch dropdown
+
         const branchSelect = document.getElementById('material-branch');
-        branches.forEach(b => {
+        const semesterSelect = document.getElementById('material-semester');
+        const subjectSelect = document.getElementById('material-subject');
+
+        // Populate branch dropdown
+        branchSelect.innerHTML = '<option value="">Select Branch</option>';
+        Object.keys(branchSemesterSubject).forEach(branch => {
             const opt = document.createElement('option');
-            opt.value = b;
-            opt.textContent = b;
+            opt.value = branch;
+            opt.textContent = branch;
             branchSelect.appendChild(opt);
         });
-        // Populate subject dropdown based on branch
-        const subjectSelect = document.getElementById('material-subject');
-        function updateSubjectOptions() {
+
+        // Update semester options when branch changes
+        branchSelect.addEventListener('change', function() {
             const branch = branchSelect.value;
-            subjectSelect.innerHTML = '';
-            (subjectsByBranch[branch] || []).forEach(s => {
-                const opt = document.createElement('option');
-                opt.value = s;
-                opt.textContent = s;
-                subjectSelect.appendChild(opt);
-            });
-        }
-        branchSelect.addEventListener('change', updateSubjectOptions);
-        updateSubjectOptions();
+            semesterSelect.innerHTML = '<option value="">Select Semester</option>';
+            subjectSelect.innerHTML = '<option value="">Select Subject</option>';
+            if (branchSemesterSubject[branch]) {
+                Object.keys(branchSemesterSubject[branch]).forEach(sem => {
+                    const opt = document.createElement('option');
+                    opt.value = sem;
+                    opt.textContent = sem;
+                    semesterSelect.appendChild(opt);
+                });
+            }
+        });
+
+        // Update subject options when semester changes
+        semesterSelect.addEventListener('change', function() {
+            const branch = branchSelect.value;
+            const semester = semesterSelect.value;
+            subjectSelect.innerHTML = '<option value="">Select Subject</option>';
+            if (branchSemesterSubject[branch] && branchSemesterSubject[branch][semester]) {
+                branchSemesterSubject[branch][semester].forEach(subj => {
+                    const opt = document.createElement('option');
+                    opt.value = subj;
+                    opt.textContent = subj;
+                    subjectSelect.appendChild(opt);
+                });
+            }
+        });
 
         // --- ANNOUNCEMENT MANAGEMENT ---
         
@@ -1987,9 +2225,9 @@
             const noticesList = document.getElementById('college-notices-list-admin');
             const statsContainer = document.getElementById('notices-stats');
             const lastUpdated = document.getElementById('notices-last-updated-admin');
-            
             if (!noticesList) {
-                console.error('Could not find college-notices-list-admin container');
+                // Try again after a short delay if the container is not present
+                setTimeout(loadCollegeNoticesAdmin, 100);
                 return;
             }
 
@@ -2126,7 +2364,11 @@
                     const result = await response.json();
                     console.log('Notices refreshed:', result);
                     showNotification(`Notices refreshed successfully! Found ${result.count} notices.`);
-                    loadCollegeNoticesAdmin(); // Reload the display
+                    // Only reload if college-notices-page is visible
+                    const page = document.getElementById('college-notices-page');
+                    if (page && page.classList.contains('active')) {
+                        loadCollegeNoticesAdmin();
+                    }
                 } else {
                     const data = await response.json();
                     showNotification(data.error || 'Failed to refresh notices');
@@ -2166,164 +2408,6 @@
                 viewStatsBtn.addEventListener('click', viewCollegeNotices);
             }
         });
-
-        // Load dashboard data
-        async function loadDashboardData() {
-            try {
-                const token = localStorage.getItem('dg_jwt');
-                if (!token) {
-                    showNotification('No authentication token found');
-                    return;
-                }
-
-                // Load user statistics
-                const userResponse = await fetch(`${API_BASE}/admin/stats`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                if (userResponse.ok) {
-                    const stats = await userResponse.json();
-                    document.getElementById('total-students').textContent = stats.totalStudents || 0;
-                    document.getElementById('active-subscriptions').textContent = stats.activeSubscriptions || 0;
-                    document.getElementById('total-materials').textContent = stats.totalMaterials || 0;
-                    document.getElementById('quiz-participation').textContent = stats.quizParticipation || 0;
-                }
-
-                // Load recent logs
-                const logsResponse = await fetch(`${API_BASE}/admin/logs`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                if (logsResponse.ok) {
-                    const logs = await logsResponse.json();
-                    console.log('Logs received:', logs); // Debug log
-                    const logsContainer = document.getElementById('recent-logs');
-                    console.log('Logs container:', logsContainer); // Debug log
-                    
-                    if (!logsContainer) {
-                        console.error('Could not find recent-logs container!');
-                        return;
-                    }
-                    
-                    if (logs && logs.length > 0) {
-                        const logsHTML = logs.map(log => `
-                            <div class="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
-                                <div class="flex-1">
-                                    <span class="text-sm font-medium">${log.action}</span>
-                                    <span class="text-xs text-gray-500 ml-2">by ${log.user}</span>
-                                </div>
-                                <span class="text-xs text-gray-500">${new Date(log.timestamp).toLocaleString()}</span>
-                            </div>
-                        `).join('');
-                        console.log('Generated HTML:', logsHTML); // Debug log
-                        logsContainer.innerHTML = logsHTML;
-                        console.log('HTML set successfully'); // Debug log
-                    } else {
-                        logsContainer.innerHTML = '<p class="text-gray-500 text-sm">No recent activity</p>';
-                    }
-                } else {
-                    console.error('Failed to fetch logs:', logsResponse.status);
-                }
-            } catch (error) {
-                console.error('Error loading dashboard data:', error);
-                showNotification('Failed to load dashboard data');
-            }
-        }
-
-        // Load college notices when college notices page is shown
-        function showPage(pageId) {
-            // Handle special pages
-            if (pageId === 'login-page') {
-                document.getElementById('login-page').style.display = 'block';
-                document.getElementById('admin-dashboard').style.display = 'none';
-                return;
-            }
-            
-            if (pageId === 'admin-dashboard') {
-                document.getElementById('login-page').style.display = 'none';
-                document.getElementById('admin-dashboard').style.display = 'block';
-                showPage('dashboard-page');
-                return;
-            }
-            
-            // Hide all inner pages
-            document.querySelectorAll('#admin-dashboard .page').forEach(page => {
-                page.classList.remove('active');
-            });
-            
-            // Show selected page
-            const selectedPage = document.getElementById(pageId);
-            if (selectedPage) {
-                selectedPage.classList.add('active');
-            }
-            
-            // Load page-specific content
-            if (pageId === 'dashboard-page') {
-                loadDashboardData();
-            } else if (pageId === 'materials-page') {
-                loadMaterials();
-            } else if (pageId === 'users-page') {
-                loadUsers();
-            } else if (pageId === 'announcements-page') {
-                loadAnnouncements();
-            } else if (pageId === 'college-notices-page') {
-                loadCollegeNoticesAdmin();
-            } else if (pageId === 'quizzes-page') {
-                loadQuizzes();
-            } else if (pageId === 'offers-page') {
-                loadOffers();
-            } else if (pageId === 'analytics-page') {
-                loadAnalytics();
-            } else if (pageId === 'subscriptions-page') {
-                loadSubscriptions();
-            }
-        }
-
-        // Load subscriptions
-        async function loadSubscriptions() {
-            try {
-                const token = localStorage.getItem('dg_jwt');
-                if (!token) {
-                    showNotification('No authentication token found');
-                    return;
-                }
-
-                const response = await fetch(`${API_BASE}/subscriptions`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                if (response.ok) {
-                    const subscriptions = await response.json();
-                    const container = document.getElementById('subscriptions-content');
-                    
-                    if (subscriptions.length > 0) {
-                        container.innerHTML = subscriptions.map(sub => `
-                            <div class="flex items-center justify-between p-3 border-b">
-                                <div>
-                                    <h4 class="font-semibold">${sub.userName || 'Unknown User'}</h4>
-                                    <p class="text-sm text-gray-500">${sub.plan} - ${sub.status}</p>
-                                </div>
-                                <div class="flex gap-2">
-                                    <button onclick="editSubscription('${sub._id}')" class="text-blue-600 hover:text-blue-800">Edit</button>
-                                    <button onclick="deleteSubscription('${sub._id}')" class="text-red-600 hover:text-red-800">Delete</button>
-                                </div>
-                            </div>
-                        `).join('');
-                    } else {
-                        container.innerHTML = '<p class="text-gray-500">No subscriptions found</p>';
-                    }
-                }
-            } catch (error) {
-                console.error('Error loading subscriptions:', error);
-                showNotification('Failed to load subscriptions');
-            }
-        }
 
         // Load offers
         async function loadOffers() {
@@ -2643,12 +2727,6 @@
             }
         }
 
-
-
-
-
-
-
         // Add global functions for testing
         window.refreshCollegeNotices = refreshCollegeNotices;
         window.viewCollegeNotices = viewCollegeNotices;
@@ -2731,6 +2809,258 @@
                 showNotification('Error creating test logs');
             }
         };
+
+        // Implement showEditMaterialModal and handle form submission
+        function showEditMaterialModal(material) {
+            const modal = document.getElementById('edit-material-modal');
+            const form = document.getElementById('edit-material-form');
+            form.innerHTML = `
+                <input type="hidden" name="id" value="${material._id}">
+                <div><label class="block text-sm font-medium">Title</label><input type="text" name="title" value="${material.title}" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" required /></div>
+                <div><label class="block text-sm font-medium">Type</label><input type="text" name="type" value="${material.type}" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" readonly /></div>
+                <div><label class="block text-sm font-medium">Branch</label><input type="text" name="branch" value="${material.branch}" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" required /></div>
+                <div><label class="block text-sm font-medium">Semester</label><input type="text" name="semester" value="${material.semester}" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" required /></div>
+                <div><label class="block text-sm font-medium">Subject</label><input type="text" name="subject" value="${material.subject}" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" required /></div>
+                <div><label class="block text-sm font-medium">Category</label><input type="text" name="category" value="${material.category}" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" required /></div>
+                <div class="flex justify-end gap-2"><button type="button" id="edit-material-cancel" class="btn-secondary py-2 px-4 rounded-lg">Cancel</button><button type="submit" class="btn-primary py-2 px-4 rounded-lg">Save Changes</button></div>
+            `;
+            modal.style.display = 'flex';
+            document.getElementById('edit-material-cancel').onclick = function() {
+                modal.style.display = 'none';
+            };
+            form.onsubmit = async function(e) {
+                e.preventDefault();
+                const formData = new FormData(form);
+                const id = formData.get('id');
+                const payload = {
+                    title: formData.get('title'),
+                    branch: formData.get('branch'),
+                    semester: formData.get('semester'),
+                    subject: formData.get('subject'),
+                    category: formData.get('category')
+                };
+                const token = localStorage.getItem('dg_jwt');
+                try {
+                    const res = await fetch(`${API_BASE}/materials/${id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        showNotification('Material updated successfully!');
+                        modal.style.display = 'none';
+                        loadMaterials();
+                    } else {
+                        showNotification(data.error || 'Failed to update material.');
+                    }
+                } catch (err) {
+                    showNotification('Failed to update material.');
+                }
+            };
+        }
+
+        // --- MATERIAL FILTER & SEARCH ---
+        const filterBranch = document.getElementById('filter-branch');
+        const filterSemester = document.getElementById('filter-semester');
+        const filterCategory = document.getElementById('filter-category');
+        const searchMaterials = document.getElementById('search-materials');
+        let allMaterials = [];
+
+        // Add subject filter dynamically after semester filter
+        const filterSubject = document.createElement('select');
+        filterSubject.id = 'filter-subject';
+        filterSubject.className = 'px-3 py-2 border rounded-md';
+        filterSubject.innerHTML = '<option value="">All Subjects</option>';
+        filterSemester.parentNode.insertBefore(filterSubject, filterSemester.nextSibling);
+
+        // Populate filter dropdowns (branches, semesters, categories, subjects) from materials data
+        function populateMaterialFilters(materials) {
+          const branches = [...new Set(materials.map(m => m.branch).filter(Boolean))];
+          const semesters = [...new Set(materials.map(m => m.semester).filter(Boolean))];
+          const categories = [...new Set(materials.map(m => m.category).filter(Boolean))];
+          const subjects = [...new Set(materials.map(m => m.subject).filter(Boolean))];
+          filterBranch.innerHTML = '<option value="">All Branches</option>' + branches.map(b => `<option value="${b}">${b}</option>`).join('');
+          filterSemester.innerHTML = '<option value="">All Semesters</option>' + semesters.map(s => `<option value="${s}">${s}</option>`).join('');
+          filterCategory.innerHTML = '<option value="">All Categories</option>' + categories.map(c => `<option value="${c}">${c}</option>`).join('');
+          filterSubject.innerHTML = '<option value="">All Subjects</option>' + subjects.map(s => `<option value="${s}">${s}</option>`).join('');
+        }
+
+        function filterAndRenderMaterials() {
+          let filtered = allMaterials;
+          if (filterBranch.value) filtered = filtered.filter(m => m.branch === filterBranch.value);
+          if (filterSemester.value) filtered = filtered.filter(m => m.semester === filterSemester.value);
+          if (filterCategory.value) filtered = filtered.filter(m => m.category === filterCategory.value);
+          if (filterSubject.value) filtered = filtered.filter(m => m.subject === filterSubject.value);
+          if (searchMaterials.value) {
+            const q = searchMaterials.value.toLowerCase();
+            filtered = filtered.filter(m => m.title.toLowerCase().includes(q) || m.subject.toLowerCase().includes(q));
+          }
+          renderMaterials(filtered);
+        }
+
+        filterBranch.addEventListener('change', filterAndRenderMaterials);
+        filterSemester.addEventListener('change', filterAndRenderMaterials);
+        filterCategory.addEventListener('change', filterAndRenderMaterials);
+        filterSubject.addEventListener('change', filterAndRenderMaterials);
+        searchMaterials.addEventListener('input', filterAndRenderMaterials);
+
+        // Patch loadMaterials to store allMaterials and populate filters
+        const origLoadMaterials = loadMaterials;
+        loadMaterials = async function() {
+          const container = document.getElementById('materials-content');
+          container.innerHTML = '<p class="text-gray-500">Loading materials...</p>';
+          try {
+            const response = await fetch(`${API_BASE}/materials`, {
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('dg_jwt')}` }
+            });
+            if (response.ok) {
+              allMaterials = await response.json();
+              populateMaterialFilters(allMaterials);
+              filterAndRenderMaterials();
+            } else {
+              container.innerHTML = '<p class="text-red-500">Failed to load materials</p>';
+            }
+          } catch (error) {
+            console.error('Materials load error:', error);
+            container.innerHTML = '<p class="text-red-500">Failed to load materials</p>';
+          }
+        }
+
+        // --- MATERIALS FILTERS (DEPENDENT DROPDOWNS) ---
+        // Remove static MSBTE-based filter population for filters (keep only for upload modal)
+        // ... existing code ...
+
+        // Place this at the top of the script, before any code that calls showPage
+        function showPage(pageId) {
+            // Only handle admin-dashboard and its subpages now
+            if (pageId === 'admin-dashboard') {
+                document.getElementById('admin-dashboard').style.display = 'block';
+                showPage('dashboard-page');
+                return;
+            }
+            // Hide all inner pages
+            document.querySelectorAll('#admin-dashboard .page').forEach(page => {
+                page.classList.remove('active');
+            });
+            // Show selected page
+            const selectedPage = document.getElementById(pageId);
+            if (selectedPage) {
+                selectedPage.classList.add('active');
+            }
+            // Load page-specific content
+            if (pageId === 'dashboard-page') {
+                loadDashboardData();
+            } else if (pageId === 'materials-page') {
+                loadMaterials();
+            } else if (pageId === 'users-page') {
+                loadUsers();
+            } else if (pageId === 'announcements-page') {
+                loadAnnouncements();
+            } else if (pageId === 'college-notices-page') {
+                loadCollegeNoticesAdmin();
+            } else if (pageId === 'quizzes-page') {
+                loadQuizzes();
+            } else if (pageId === 'offers-page') {
+                loadOffers();
+            } else if (pageId === 'analytics-page') {
+                loadAnalytics();
+            } else if (pageId === 'subscriptions-page') {
+                loadSubscriptions();
+            } else if (pageId === 'download-logs-page') {
+                loadDownloadLogs();
+            }
+        }
+        window.showPage = showPage;
+
+        // Download Logs Page Logic
+        async function loadDownloadLogs(filters = {}) {
+            const container = document.getElementById('download-logs-content');
+            container.innerHTML = '<p class="text-gray-500">Loading download logs...</p>';
+            try {
+                const token = localStorage.getItem('dg_jwt');
+                const params = new URLSearchParams();
+                if (filters.user) params.append('user', filters.user);
+                if (filters.material) params.append('material', filters.material);
+                if (filters.startDate) params.append('startDate', filters.startDate);
+                if (filters.endDate) params.append('endDate', filters.endDate);
+                const res = await fetch(`${API_BASE}/materials/download-logs?${params.toString()}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const logs = await res.json();
+                if (!Array.isArray(logs) || logs.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500">No download logs found</p>';
+                    return;
+                }
+                container.innerHTML = `
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="border-b">
+                                    <th class="text-left p-2">User</th>
+                                    <th class="text-left p-2">Email</th>
+                                    <th class="text-left p-2">Material</th>
+                                    <th class="text-left p-2">Subject</th>
+                                    <th class="text-left p-2">Branch</th>
+                                    <th class="text-left p-2">Semester</th>
+                                    <th class="text-left p-2">Category</th>
+                                    <th class="text-left p-2">Date/Time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${logs.map(log => `
+                                    <tr class="border-b hover:bg-gray-50">
+                                        <td class="p-2">${log.user?.name || '-'}</td>
+                                        <td class="p-2">${log.user?.email || '-'}</td>
+                                        <td class="p-2">${log.material?.title || '-'}</td>
+                                        <td class="p-2">${log.material?.subject || '-'}</td>
+                                        <td class="p-2">${log.material?.branch || '-'}</td>
+                                        <td class="p-2">${log.material?.semester || '-'}</td>
+                                        <td class="p-2">${log.material?.category || '-'}</td>
+                                        <td class="p-2">${log.downloadedAt ? new Date(log.downloadedAt).toLocaleString() : '-'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } catch (err) {
+                container.innerHTML = '<p class="text-red-500">Failed to load download logs</p>';
+            }
+        }
+        // Filter form logic
+        const downloadLogsFilterForm = document.getElementById('download-logs-filter');
+        downloadLogsFilterForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const user = document.getElementById('filter-user').value.trim();
+            const material = document.getElementById('filter-material').value.trim();
+            const startDate = document.getElementById('filter-start-date').value;
+            const endDate = document.getElementById('filter-end-date').value;
+            // For user and material, ideally we would use IDs, but for now, pass as is (backend expects IDs)
+            loadDownloadLogs({ user, material, startDate, endDate });
+        });
+        // Show logs when page is activated
+        const downloadLogsPageBtn = document.querySelector('[data-page="download-logs-page"]');
+        downloadLogsPageBtn.addEventListener('click', () => loadDownloadLogs());
+
+
+        // Update subject filter when semester changes
+        filterSemester.addEventListener('change', function() {
+            const branch = filterBranch.value;
+            const semester = filterSemester.value;
+            filterSubject.innerHTML = '<option value="">All Subjects</option>';
+            if (branchSemesterSubject[branch] && branchSemesterSubject[branch][semester]) {
+                branchSemesterSubject[branch][semester].forEach(subj => {
+                    const opt = document.createElement('option');
+                    opt.value = subj;
+                    opt.textContent = subj;
+                    filterSubject.appendChild(opt);
+                });
+            }
+        });
     </script>
 </body>
 </html> 
