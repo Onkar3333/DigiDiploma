@@ -1,1424 +1,161 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DigiDiploma - Student Portal</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="/socket.io/socket.io.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+// ... existing code ...
     <style>
-        /* Base font for the body */
-        body { font-family:a'Inter', sans-serif; }
-
-        /* Decorative font for headers */
-        h1, h2, h3, h4, .font-decorative { font-family: 'Merriweather', serif; }
-
-        /* Page visibility toggles */
-        .page { display: none; }
-        .page.active { display: block; }
-        .main-content-view { display: none; }
-        .main-content-view.active { display: block; }
-
-        /* --- DigiDiploma Theme --- */
-        :root {
-            --primary: #2563eb; /* Blue-600 */
-            --primary-dark: #1e40af; /* Blue-800 */
-            --accent: #2563eb; /* Blue-600 */
-            --accent-dark: #1e40af; /* Blue-800 */
-            --support: #e0e7ef; /* Light blue-gray */
-            --bg-white: #ffffff;
-            --bg-light: #f8fafc;
-            --text-dark: #1e293b;
-            --text-light: #ffffff;
+        /* ... existing styles ... */
+        html {
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        *, *:before, *:after {
+            box-sizing: inherit;
         }
         body {
-            background: var(--bg-light);
-            color: var(--text-dark);
+            min-width: 0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        .modern-card {
+            padding: 1.25rem 1rem;
+        }
+        @media (min-width: 640px) {
+            .modern-card {
+                padding: 2rem 1.5rem;
+            }
+        }
+        .modern-card-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.25rem;
+        }
+        @media (min-width: 640px) {
+            .modern-card-grid {
+                gap: 2rem;
+            }
+        }
+        @media (min-width: 768px) {
+            .modern-card-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        @media (min-width: 1024px) {
+            .modern-card-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        .dashboard-header-group {
+            margin-bottom: 1.5rem;
+            padding: 0 0.5rem;
+        }
+        @media (min-width: 640px) {
+            .dashboard-header-group {
+                margin-bottom: 2rem;
+            }
+        }
+        .dashboard-header-group h2 {
+            font-size: 2rem;
+        }
+        @media (min-width: 640px) {
+            .dashboard-header-group h2 {
+                font-size: 2.5rem;
+            }
         }
         .header-bg {
-            background-color: var(--primary);
+            padding: 1rem 0.5rem;
         }
-        .btn-primary {
-            background-color: var(--primary);
-            color: var(--text-light);
-        }
-        .btn-primary:hover {
-            background-color: var(--primary-dark);
-        }
-        .btn-secondary {
-            background-color: var(--support);
-            color: var(--primary);
-        }
-        .btn-secondary:hover {
-            background-color: var(--primary);
-            color: var(--text-light);
-        }
-        .text-gradient {
-            background: linear-gradient(to right, var(--primary), var(--accent));
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .card-texture {
-            background-color: var(--bg-white);
-            color: var(--text-dark);
-            box-shadow: 0 4px 24px 0 rgba(37,99,235,0.08), 0 1.5px 6px 0 rgba(30,64,175,0.06);
-            border-radius: 1rem;
-            border: 1.5px solid #e0e7ef;
-            margin-bottom: 2rem;
-        }
-        .card-texture:not(:last-child) {
-            margin-bottom: 2.5rem;
-        }
-        .card-texture h2 {
-            color: var(--primary);
-        }
-        .card-texture form > div {
-            margin-bottom: 1.25rem;
-        }
-        /* Dashboard cards distinction */
-        #student-dashboard-page .p-6.rounded-lg.shadow-md {
-            box-shadow: 0 4px 24px 0 rgba(37,99,235,0.08), 0 1.5px 6px 0 rgba(30,64,175,0.06);
-            border-radius: 1rem;
-            border: 1.5px solid #e0e7ef;
-            background: var(--bg-white);
-        }
-        #student-dashboard-page .p-6.rounded-lg.shadow-md:not(:last-child) {
-            margin-bottom: 2rem;
-        }
-        .sidebar-nav-link {
-            color: var(--primary);
-        }
-        .sidebar-nav-link:hover {
-            background-color: var(--support);
+        @media (min-width: 640px) {
+            .header-bg {
+                padding: 1.25rem 2rem;
+            }
         }
         #left-sidebar {
-            background-color: var(--bg-white);
+            width: 90vw;
+            max-width: 320px;
+            left: 0;
+            top: 0;
+            height: 100vh;
+            z-index: 100;
+            transition: transform 0.3s;
         }
-        #menu-header {
-            background-color: var(--primary);
-            color: var(--text-light);
-            cursor: pointer;
-            user-select: none;
-            border-radius: 0.5rem;
-            transition: background 0.2s;
+        @media (min-width: 768px) {
+            #left-sidebar {
+                position: static !important;
+                width: 100%;
+                max-width: none;
+                height: auto;
+                z-index: 1;
+                border-radius: 1rem;
+                box-shadow: none;
+            }
         }
-        #menu-header:focus {
-            outline: 2px solid var(--primary-dark);
+        #sidebar-overlay {
+            display: none;
         }
-        #menu-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1);
-        }
-        #menu-content.open {
-            max-height: 500px; /* Large enough for all items */
-        }
-        #menu-toggle-icon {
-            transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
-        }
-        #menu-header[aria-expanded="true"] #menu-toggle-icon {
-            transform: rotate(180deg);
-        }
-        #menu-content ul li a {
-            color: var(--primary);
-            background: none;
-            transition: background 0.2s, color 0.2s;
-        }
-        #menu-content ul li a:hover, #menu-content ul li a:focus {
-            background-color: var(--accent-light, #e0e7ff);
-            color: var(--primary-dark);
-        }
-        .modal-box {
-            background-color: var(--bg-white);
-            border: 2px solid var(--primary);
+        @media (max-width: 767px) {
+            #sidebar-overlay.active {
+                display: block;
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.4);
+                z-index: 99;
+            }
         }
         .main-content-view, .page {
-            background: var(--bg-white);
+            padding: 0.5rem;
         }
-        #student-dashboard-page header {
-            background: var(--primary);
-            color: var(--text-light);
+        @media (min-width: 640px) {
+            .main-content-view, .page {
+                padding: 1.5rem;
+            }
         }
-        #student-dashboard-page main {
-            background: var(--bg-white);
+        .card-texture, .modern-card, .announcement-card {
+            width: 100%;
+            max-width: 100%;
         }
-        /* Remove parchment backgrounds from cards */
-        [style*="background-color: var(--bg-parchment)"] {
-            background-color: var(--bg-white) !important;
+        .announcement-card {
+            padding: 1rem 0.75rem;
+        }
+        @media (min-width: 640px) {
+            .announcement-card {
+                padding: 1.25rem 1.25rem;
+            }
+        }
+        #announcements-panel {
+            margin-bottom: 1rem;
+            padding: 1rem 0.5rem;
+        }
+        @media (min-width: 640px) {
+            #announcements-panel {
+                margin-bottom: 1.5rem;
+                padding: 1.5rem 1rem;
+            }
+        }
+        /* Responsive forms */
+        form input, form select {
+            width: 100%;
+            font-size: 1rem;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+        }
+        @media (max-width: 480px) {
+            .header-bg h1 {
+                font-size: 1.25rem !important;
+            }
+            .dashboard-header-group h2 {
+                font-size: 1.25rem !important;
+            }
+        }
+        /* Hide scrollbars on mobile for sidebars */
+        #left-sidebar, #announcements-panel {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        #left-sidebar::-webkit-scrollbar, #announcements-panel::-webkit-scrollbar {
+            display: none;
+        }
+        /* Ensure no horizontal scroll */
+        html, body {
+            overflow-x: hidden;
         }
     </style>
-</head>
-<body class="text-stone-800">
-
-    <!-- Modal for notifications -->
-    <div id="custom-modal" class="modal-overlay" style="display:none;">
-        <div class="modal-box">
-            <!-- Removed Notification title for cleaner modal -->
-            <p id="modal-message" class="mb-6 text-stone-700"></p>
-            <button id="modal-close-btn" class="btn-secondary font-bold py-2 px-6 rounded-lg">OK</button>
-        </div>
-    </div>
-
-    <!-- Toast Notification Container -->
-    <div id="toast-container" style="position: fixed; top: 1.5rem; right: 1.5rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.75rem;"></div>
-
-    <!-- Landing Page Layout -->
-    <div id="landing-layout" class="page active">
-        <div class="w-full">
-            <header class="header-bg text-white p-4 flex items-center justify-between shadow-lg">
-                <div class="flex-1">
-                    <button id="sidebar-toggle-btn" class="md:hidden mr-2 p-2 text-2xl font-bold text-amber-300">&#9776;</button>
-                </div>
-                <div class="flex-1 flex justify-center items-center">
-                    <div class="h-12 w-12 bg-white rounded-full flex items-center justify-center mr-4">
-                        <span class="text-2xl font-bold" style="color: var(--primary);">DD</span>
-                    </div>
-                    <div>
-                        <h1 class="text-2xl md:text-4xl font-black" style="color: var(--primary); text-shadow: 0 1px 4px #fff, 0 1px 8px #2563eb22;">DigiDiploma</h1>
-                        <p class="text-xs md:text-sm text-amber-100/80">Digital Diploma Platform</p>
-                    </div>
-                </div>
-                <div class="flex-1"></div>
-            </header>
-
-            <div class="flex flex-col md:flex-row gap-6 p-4 md:p-6">
-                <!-- Left Sidebar -->
-                <aside id="left-sidebar" class="fixed md:static top-0 left-0 h-full w-64 md:w-1/4 lg:w-1/5 bg-white/70 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none shadow-lg md:shadow-md rounded-lg border-r md:border-gray-200 z-50 transform -translate-x-full md:transform-none" style="background-color: var(--bg-parchment);">
-                    <div class="p-4">
-                        <div id="menu-header" class="flex justify-between items-center p-2 rounded-md cursor-pointer" style="background-color: var(--accent);">
-                             <h3 class="text-lg font-bold text-stone-800">Menu</h3>
-                             <span id="menu-toggle-icon" class="transform transition-transform duration-300">▼</span>
-                        </div>
-                        <div id="menu-content">
-                            <ul class="space-y-2 text-sm font-medium mt-2">
-                                <li><a href="#" class="sidebar-nav-link block p-2 rounded-md text-stone-700 hover:bg-amber-100">Project Competition</a></li>
-                                <li><a href="#" class="sidebar-nav-link block p-2 rounded-md text-stone-700 hover:bg-amber-100">Technical Quiz Competition</a></li>
-                                <li><a href="#" class="sidebar-nav-link block p-2 rounded-md text-stone-700 hover:bg-amber-100">Paper presentation</a></li>
-                                <li><a href="#" class="sidebar-nav-link block p-2 rounded-md text-stone-700 hover:bg-amber-100">Industrial Training</a></li>
-                                <li><a href="#" class="sidebar-nav-link block p-2 rounded-md text-stone-700 hover:bg-amber-100">Topper</a></li>
-                                <li><a href="#" class="sidebar-nav-link block p-2 rounded-md text-stone-700 hover:bg-amber-100">Result Analysis</a></li>
-                                <li><a href="#" id="show-register-from-link" class="sidebar-nav-link block p-2 rounded-md font-bold hover:bg-amber-100" style="color: var(--primary);">New Candidate Registration</a></li>
-                            </ul>
-                        </div>
-                    </div>
-                </aside>
-                
-                <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden md:hidden"></div>
-
-                <!-- Main Content (Login/Register) -->
-                <main id="central-content" class="flex-1">
-                    <div id="login-view" class="main-content-view active">
-                        <div class="card-texture p-6 md:p-8 rounded-lg shadow-md">
-                            <h2 class="text-xl font-bold p-3 rounded-md mb-6 text-center">Login</h2>
-                            <form id="login-form" class="space-y-4">
-                                <div><label for="login-email" class="block text-sm font-medium">Email</label><input type="email" id="login-email" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" placeholder="Enter your email" required /></div>
-                                <div><label for="login-password" class="block text-sm font-medium">Password</label><input type="password" id="login-password" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" required /></div>
-                                <button type="submit" class="w-full btn-primary font-bold py-2.5 px-4 rounded-lg">Login</button>
-                            </form>
-                            <div class="text-center mt-4 pt-4 border-t border-t-stone-600">
-                                <button id="show-register-btn" class="font-semibold hover:underline">New Candidate Registration</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="register-view" class="main-content-view">
-                        <div class="card-texture p-6 md:p-8 rounded-lg shadow-md">
-                            <h2 class="text-xl font-bold p-3 rounded-md mb-6 text-center">New Candidate Registration</h2>
-                            <form id="register-form" class="space-y-4">
-                                <div>
-                                    <label for="register-college" class="block text-sm font-medium">Select Polytechnic</label>
-                                    <select id="register-college" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm">
-                                        <option value="">Select college</option>
-                                        <option value="Government Polytechnic, Awasari (Kh.)">Government Polytechnic, Awasari (Kh.)</option>
-                                        <option value="Government Polytechnic, Pune">Government Polytechnic, Pune</option>
-                                        <option value="Government Polytechnic, Mumbai">Government Polytechnic, Mumbai</option>
-                                        <option value="Government Polytechnic, Nagpur">Government Polytechnic, Nagpur</option>
-                                        <option value="Government Polytechnic, Aurangabad">Government Polytechnic, Aurangabad</option>
-                                        <option value="Government Polytechnic, Nashik">Government Polytechnic, Nashik</option>
-                                        <option value="Government Polytechnic, Kolhapur">Government Polytechnic, Kolhapur</option>
-                                        <option value="Government Polytechnic, Solapur">Government Polytechnic, Solapur</option>
-                                        <option value="Government Polytechnic, Amravati">Government Polytechnic, Amravati</option>
-                                        <option value="Government Polytechnic, Jalgaon">Government Polytechnic, Jalgaon</option>
-                                        <option value="Government Polytechnic, Latur">Government Polytechnic, Latur</option>
-                                        <option value="Government Polytechnic, Nanded">Government Polytechnic, Nanded</option>
-                                        <option value="Government Polytechnic, Beed">Government Polytechnic, Beed</option>
-                                        <option value="Government Polytechnic, Osmanabad">Government Polytechnic, Osmanabad</option>
-                                        <option value="Government Polytechnic, Parbhani">Government Polytechnic, Parbhani</option>
-                                        <option value="Government Polytechnic, Hingoli">Government Polytechnic, Hingoli</option>
-                                        <option value="Government Polytechnic, Washim">Government Polytechnic, Washim</option>
-                                        <option value="Government Polytechnic, Buldhana">Government Polytechnic, Buldhana</option>
-                                        <option value="Government Polytechnic, Akola">Government Polytechnic, Akola</option>
-                                        <option value="Government Polytechnic, Yavatmal">Government Polytechnic, Yavatmal</option>
-                                        <option value="Government Polytechnic, Wardha">Government Polytechnic, Wardha</option>
-                                        <option value="Government Polytechnic, Chandrapur">Government Polytechnic, Chandrapur</option>
-                                        <option value="Government Polytechnic, Gadchiroli">Government Polytechnic, Gadchiroli</option>
-                                        <option value="Government Polytechnic, Bhandara">Government Polytechnic, Bhandara</option>
-                                        <option value="Government Polytechnic, Gondia">Government Polytechnic, Gondia</option>
-                                        <option value="Government Polytechnic, Ratnagiri">Government Polytechnic, Ratnagiri</option>
-                                        <option value="Government Polytechnic, Sindhudurg">Government Polytechnic, Sindhudurg</option>
-                                        <option value="Government Polytechnic, Raigad">Government Polytechnic, Raigad</option>
-                                        <option value="Government Polytechnic, Thane">Government Polytechnic, Thane</option>
-                                        <option value="Government Polytechnic, Palghar">Government Polytechnic, Palghar</option>
-                                        <option value="Government Polytechnic, Dhule">Government Polytechnic, Dhule</option>
-                                        <option value="Government Polytechnic, Nandurbar">Government Polytechnic, Nandurbar</option>
-                                        <option value="Government Polytechnic, Ahmednagar">Government Polytechnic, Ahmednagar</option>
-                                        <option value="Government Polytechnic, Satara">Government Polytechnic, Satara</option>
-                                        <option value="Government Polytechnic, Sangli">Government Polytechnic, Sangli</option>
-                                        <option value="Government Polytechnic, Jalna">Government Polytechnic, Jalna</option>
-                                        <option value="Government Polytechnic, Aurangabad Rural">Government Polytechnic, Aurangabad Rural</option>
-                                        <option value="Other">Other (Please specify)</option>
-                                    </select>
-                                    <div id="register-custom-college-input" class="mt-2" style="display: none;">
-                                        <input type="text" id="register-custom-college-name" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" placeholder="Enter custom college name">
-                                    </div>
-                                </div>
-                                <div>
-                                    <label for="register-branch" class="block text-sm font-medium">Select Branch</label>
-                                    <select id="register-branch" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm">
-                                        <option value="">Select branch</option>
-                                        <option value="Computer Engineering">Computer Engineering</option>
-                                        <option value="Mechanical Engineering">Mechanical Engineering</option>
-                                        <option value="Electrical Engineering">Electrical Engineering</option>
-                                        <option value="Civil Engineering">Civil Engineering</option>
-                                        <option value="Electronics & Telecommunication">Electronics & Telecommunication</option>
-                                        <option value="Information Technology">Information Technology</option>
-                                        <option value="Chemical Engineering">Chemical Engineering</option>
-                                        <option value="Automobile Engineering">Automobile Engineering</option>
-                                        <option value="Production Engineering">Production Engineering</option>
-                                        <option value="Textile Technology">Textile Technology</option>
-                                        <option value="Metallurgy">Metallurgy</option>
-                                        <option value="Instrumentation">Instrumentation</option>
-                                        <option value="Plastic Technology">Plastic Technology</option>
-                                        <option value="Printing Technology">Printing Technology</option>
-                                        <option value="Other">Other (Please specify)</option>
-                                    </select>
-                                    <div id="register-custom-branch-input" class="mt-2" style="display: none;">
-                                        <input type="text" id="register-custom-branch-name" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" placeholder="Enter custom branch name">
-                                    </div>
-                                </div>
-                                <div><label for="register-name" class="block text-sm font-medium">Full Name</label><input type="text" id="register-name" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" required /></div>
-                                <div><label for="register-email" class="block text-sm font-medium">Email</label><input type="email" id="register-email" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" required /></div>
-                                <div><label for="register-phone" class="block text-sm font-medium">Phone Number</label><input type="tel" id="register-phone" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" placeholder="Enter your phone number" required /></div>
-                                <div><label for="register-password" class="block text-sm font-medium">Create Password</label><input type="password" id="register-password" class="mt-1 block w-full px-3 py-2 border rounded-md shadow-sm" required /></div>
-                                <button type="submit" class="w-full btn-secondary font-bold py-2.5 px-4 rounded-lg">Register</button>
-                            </form>
-                            <div class="text-center mt-4 pt-4 border-t border-t-stone-600">
-                                <button id="show-login-btn" class="font-semibold hover:underline">Already Registered? Login Here</button>
-                            </div>
-                        </div>
-                    </div>
-                </main>
-                
-                <!-- Right Sidebar: Content is now dynamic -->
-                <aside id="right-sidebar-panel" class="w-full md:w-1/3 lg:w-1/4 mt-4 md:mt-0">
-                    <!-- College panel and announcements panel content is injected here by JavaScript -->
-                </aside>
-
-            </div>
-        </div>
-    </div>
-    
-    <!-- Student Dashboard Page -->
-    <div id="student-dashboard-page" class="page">
-        <header class="bg-white shadow-md p-4 flex justify-between items-center">
-            <h2 class="text-2xl font-bold flex items-center" style="color: var(--primary);">
-                <span class="text-3xl mr-3">📖</span>
-                DigiDiploma - Your Study Portal
-            </h2>
-            <div class="flex items-center gap-3">
-                <button id="show-announcements-btn" class="btn-primary font-bold py-2 px-4 rounded-lg text-sm">📢 Announcements</button>
-                <span id="dashboard-user-name" class="text-stone-700 mr-4 font-medium"></span>
-                <button id="logout-btn" class="btn-secondary font-bold py-2 px-4 rounded-lg text-sm">Logout</button>
-            </div>
-        </header>
-        <main id="student-dashboard-content" class="p-4 md:p-8">
-            <!-- Dynamic content will be injected here -->
-        </main>
-    </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    // --- SHARED BRANCH/SEMESTER/SUBJECT/CATEGORY DATA ---
-    const branchSemesterSubject = {
-        'Computer Engineering': {
-            'Semester 1': [
-                '311302 – Basic Mathematics',
-                '311305 – Basic Science (Physics & Chemistry)',
-                '311303 – Communication Skills (English)',
-                'Engineering Graphics (311008)',
-                'Engineering Workshop Practice',
-                '311001 – Fundamentals of ICT',
-                '311003 – Yoga & Meditation'
-            ],
-            'Semester 2': [
-                '312301 – Applied Mathematics',
-                '312308 – Applied Science',
-                '312002 – Professional Communication',
-                'Programming in C (312009)',
-                '312001 – Linux Basics',
-                'Web Page Design (312004)'
-            ],
-            'Semester 3': [
-                'Data Structures (C)',
-                'DBMS',
-                'Digital Techniques',
-                'OOP (C++)',
-                'Computer Graphics',
-                'Essence of Indian Constitution'
-            ],
-            'Semester 4': [
-                'Java',
-                'Python',
-                'Data Communication & Networks',
-                'Microprocessor Programming',
-                'UI/UX Design',
-                'Environmental Education & Sustainability'
-            ],
-            'Semester 5': [
-                'Advanced Java',
-                'Cloud Computing',
-                'Software Engineering',
-                'Entrepreneurship & Startups',
-                'Seminar & Project Initiation',
-                'Internship'
-            ],
-            'Semester 6': [
-                'Capstone Project',
-                'Mobile Application Development',
-                'Network Security',
-                'Data Warehousing',
-                'Management',
-                'Emerging Trends'
-            ]
-        },
-        'Information Technology': {
-            'Semester 1': [
-                '311302 – Basic Mathematics',
-                '311305 – Basic Science (Physics & Chemistry)',
-                '311303 – Communication Skills (English)',
-                'Engineering Graphics (311008)',
-                'Engineering Workshop Practice',
-                '311001 – Fundamentals of ICT',
-                '311003 – Yoga & Meditation'
-            ],
-            'Semester 2': [
-                '312301 – Applied Mathematics',
-                '312308 – Applied Science',
-                '312002 – Professional Communication',
-                'Programming in C (312009)',
-                '312001 – Linux Basics',
-                'Web Page Design (312004)'
-            ],
-            'Semester 3': [
-                'Data Structures (C)',
-                'DBMS',
-                'Digital Techniques',
-                'OOP (C++)',
-                'Applied Multimedia',
-                'Essence of Indian Constitution'
-            ],
-            'Semester 4': [
-                'Java',
-                'Python',
-                'Data Communication & Networks',
-                'Microprocessor Programming',
-                'UI/UX Design',
-                'Environmental Education & Sustainability'
-            ],
-            'Semester 5': [
-                'Advanced Java',
-                'Cloud Computing',
-                'Software Engineering',
-                'Entrepreneurship & Startups',
-                'Seminar & Project Initiation',
-                'Internship'
-            ],
-            'Semester 6': [
-                'Capstone Project',
-                'Mobile Application Development',
-                'Network Security',
-                'Data Warehousing',
-                'Management',
-                'Emerging Trends'
-            ]
-        },
-        'Electronics & Telecommunication': {
-            'Semester 1': [
-                '311302 – Basic Mathematics',
-                '311305 – Basic Science (Physics & Chemistry)',
-                '311303 – Communication Skills (English)',
-                'Engineering Graphics (311006)',
-                'Engineering Workshop Practice',
-                '311001 – Fundamentals of ICT',
-                '311003 – Yoga & Meditation'
-            ],
-            'Semester 2': [
-                '312301 – Applied Mathematics',
-                '312308 – Applied Science',
-                '312002 – Professional Communication',
-                'Programming in C (312009)',
-                'Basic Electronics (312302)',
-                'Elements of Electrical Engineering (312314+312315)'
-            ],
-            'Semester 3': [
-                'Digital Techniques',
-                'Analog Electronics',
-                'Circuits & Networks',
-                'Electronic Communication',
-                'Python',
-                'Instrumentation',
-                'Essence of Indian Constitution'
-            ],
-            'Semester 4': [
-                'Digital Communication',
-                'Consumer Electronics',
-                'Microcontrollers',
-                'Power Electronics',
-                'Equipment Maintenance',
-                'Environmental Education & Sustainability'
-            ],
-            'Semester 5': [
-                'Embedded System',
-                'Mobile & Wireless Communication',
-                'Seminar & Project Initiation',
-                'Internship',
-                'IOT Applications / Microwave Eng.',
-                'Entrepreneurship & Startups'
-            ],
-            'Semester 6': [
-                'Capstone Project',
-                'Management',
-                'Emerging Trends in Electronics',
-                'Computer Network & Data Communication',
-                'Optical Networking and Satellite Communication',
-                'Drone Tech / Control Sys / VLSI'
-            ]
-        },
-        'Mechanical Engineering': {
-            'Semester 1': [
-                '311302 – Basic Mathematics',
-                '311305 – Basic Science (Physics & Chemistry)',
-                '311303 – Communication Skills (English)',
-                'Engineering Graphics (311006)',
-                'Engineering Workshop Practice',
-                '311001 – Fundamentals of ICT',
-                '311003 – Yoga & Meditation'
-            ],
-            'Semester 2': [
-                '312301 – Applied Mathematics',
-                '312308 – Applied Science',
-                '312002 – Professional Communication',
-                'Basic Electrical/Electronics (312302/312314+312315)',
-                'Strength of Materials',
-                'Fluid Mechanics & Machinery',
-                'Theory of Machines'
-            ],
-            'Semester 3': [
-                'Strength of Materials',
-                'Fluid Mechanics & Machinery',
-                'Thermal Engineering',
-                'Production Drawing',
-                'Basic Electrical/ Electronics',
-                'CAD',
-                'Python'
-            ],
-            'Semester 4': [
-                'Theory of Machines',
-                'Metrology & Measurement',
-                'Mechanical Materials',
-                'Production Processes',
-                'Mechatronics/CNC',
-                'Environmental Education & Sustainability',
-                'Entrepreneurship'
-            ],
-            'Semester 5': [
-                'Power Engineering & Refrigeration',
-                'Advanced Manufacturing',
-                'Seminar & Project Initiation',
-                'Internship',
-                'Entrepreneurship & Startups'
-            ],
-            'Semester 6': [
-                'Capstone Project',
-                'Hydraulics & Pneumatics',
-                'Automotive',
-                'CIM',
-                'Renewable Energy',
-                'Management',
-                'Emerging Trends'
-            ]
-        },
-        'Automobile Engineering': {
-            'Semester 1': [
-                '311302 – Basic Mathematics',
-                '311305 – Basic Science (Physics & Chemistry)',
-                '311303 – Communication Skills (English)',
-                'Engineering Graphics (311006)',
-                'Engineering Workshop Practice',
-                '311001 – Fundamentals of ICT',
-                '311003 – Yoga & Meditation'
-            ],
-            'Semester 2': [
-                '312301 – Applied Mathematics',
-                '312308 – Applied Science',
-                '312002 – Professional Communication',
-                'Basic Electrical/Electronics (312302/312314+312315)',
-                'Strength of Materials',
-                'Fluid Mechanics & Machinery',
-                'Theory of Machines'
-            ],
-            'Semester 3': [
-                'Automotive Engineering Basics',
-                'Strength of Materials',
-                'Fluid Mechanics & Machinery',
-                'Thermal Engineering',
-                'Production Drawing',
-                'CAD',
-                'Python'
-            ],
-            'Semester 4': [
-                'Vehicle Maintenance',
-                'Automotive Electronics',
-                'Estimating & Costing',
-                'Sustainability',
-                'Entrepreneurship',
-                'Mechatronics/CNC'
-            ],
-            'Semester 5': [
-                'Advanced Automotive Systems',
-                'Seminar & Project Initiation',
-                'Internship',
-                'Entrepreneurship & Startups'
-            ],
-            'Semester 6': [
-                'Capstone Project',
-                'EV Tech & Machines',
-                'Green Tech',
-                'Management',
-                'Emerging Trends'
-            ]
-        },
-        'Civil Engineering': {
-            'Semester 1': [
-                '311302 – Basic Mathematics',
-                '311305 – Basic Science (Physics & Chemistry)',
-                '311303 – Communication Skills (English)',
-                'Engineering Graphics (311006)',
-                'Engineering Workshop Practice',
-                '311001 – Fundamentals of ICT',
-                '311003 – Yoga & Meditation'
-            ],
-            'Semester 2': [
-                '312301 – Applied Mathematics',
-                '312308 – Applied Science',
-                '312002 – Professional Communication',
-                'Basic Electrical/Electronics (312302/312314+312315)',
-                'Advanced Surveying',
-                'Concrete Technology',
-                'Highway Engineering'
-            ],
-            'Semester 3': [
-                'Strength of Materials',
-                'Advanced Surveying',
-                'Concrete Technology',
-                'Highway Engineering',
-                'Building Planning & CAD',
-                'Construction Management',
-                'Essence of Indian Constitution'
-            ],
-            'Semester 4': [
-                'Hydraulics',
-                'Railway/Bridge/Tunnel Engineering',
-                'Estimating',
-                'Water & Wastewater Engineering',
-                'Geotechnical Engineering',
-                'Environmental Education & Sustainability'
-            ],
-            'Semester 5': [
-                'Advanced Surveying/Design',
-                'Seminar & Project Initiation',
-                'Internship',
-                'Entrepreneurship & Startups'
-            ],
-            'Semester 6': [
-                'Capstone Project',
-                'Management',
-                'Emerging Trends',
-                'Industrial Systems'
-            ]
-        },
-        'Electrical Engineering': {
-            'Semester 1': [
-                '311302 – Basic Mathematics',
-                '311305 – Basic Science (Physics & Chemistry)',
-                '311303 – Communication Skills (English)',
-                'Engineering Graphics (311006)',
-                'Engineering Workshop Practice',
-                '311001 – Fundamentals of ICT',
-                '311003 – Yoga & Meditation'
-            ],
-            'Semester 2': [
-                '312301 – Applied Mathematics',
-                '312308 – Applied Science',
-                '312002 – Professional Communication',
-                'Basic Electrical/Electronics (312302/312314+312315)',
-                'Electrical Circuits & Networks',
-                'Power Gen/Trans/Dist',
-                'Measurement',
-                'Power Electronics Fundamentals'
-            ],
-            'Semester 3': [
-                'Electrical Circuits & Networks',
-                'Power Gen/Trans/Dist',
-                'Measurement',
-                'Power Electronics Fundamentals',
-                'Essence of Indian Constitution',
-                'Electrical Materials & Wiring Practice'
-            ],
-            'Semester 4': [
-                'DC Machines & Transformers',
-                'Utilization of Electrical Energy',
-                'Digital Electronics & Microcontroller Applications',
-                'Estimating & Contracting',
-                'CAD & Simulation',
-                'Environmental Education & Sustainability'
-            ],
-            'Semester 5': [
-                'EV Tech & Machines',
-                'Seminar & Project Initiation',
-                'Internship',
-                'Entrepreneurship & Startups'
-            ],
-            'Semester 6': [
-                'Capstone Project',
-                'Management',
-                'Emerging Trends',
-                'Industrial Systems'
-            ]
-        }
-    };
-    const materialCategories = [
-        'syllabus',
-        'manual_answer',
-        'guessing_papers',
-        'model_answers',
-        'msbte_imp',
-        'micro_project',
-        'notes'
-    ];
-
-    let appState = {
-        isAuthenticated: false,
-        currentUser: 'Guest',
-        currentCollege: '',
-        currentBranch: '',
-        dashboardView: 'semesters', // 'semesters', 'subjects', or 'materials'
-        currentSemester: 'Semester 1',
-        currentSubject: ''
-    };
-
-    // --- ELEMENT SELECTORS ---
-    const collegeSelects = document.querySelectorAll('#register-college');
-    const branchSelects = document.querySelectorAll('#register-branch');
-    const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
-    const leftSidebar = document.getElementById('left-sidebar');
-    const sidebarOverlay = document.getElementById('sidebar-overlay');
-    const dashboardContent = document.getElementById('student-dashboard-content');
-    const modal = document.getElementById('custom-modal');
-    const modalMessage = document.getElementById('modal-message');
-    const modalCloseBtn = document.getElementById('modal-close-btn');
-    const menuHeader = document.getElementById('menu-header');
-    const menuContent = document.getElementById('menu-content');
-    const menuToggleIcon = document.getElementById('menu-toggle-icon');
-    const rightSidebarPanel = document.getElementById('right-sidebar-panel');
-    
-    // --- TOAST FUNCTIONS ---
-    function showToast(message, type = 'info') {
-        const toastContainer = document.getElementById('toast-container');
-        const toast = document.createElement('div');
-        toast.className = `toast-notification toast-${type}`;
-        toast.style.cssText = `min-width:220px; max-width:340px; background: #fff; color: #1e293b; border-left: 5px solid ${type === 'error' ? '#dc2626' : type === 'success' ? '#16a34a' : '#2563eb'}; box-shadow: 0 4px 24px 0 rgba(37,99,235,0.08), 0 1.5px 6px 0 rgba(30,64,175,0.06); border-radius: 0.75rem; padding: 1rem 1.25rem; font-size: 1rem; font-weight: 500; display: flex; align-items: center; gap: 0.75rem; opacity: 0; transform: translateY(-20px); transition: opacity 0.2s, transform 0.2s;`;
-        toast.innerHTML = `<span>${type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️'}</span><span>${message}</span>`;
-        toastContainer.appendChild(toast);
-        setTimeout(() => {
-            toast.style.opacity = '1';
-            toast.style.transform = 'translateY(0)';
-        }, 10);
-        setTimeout(() => {
-            toast.style.opacity = '0';
-            toast.style.transform = 'translateY(-20px)';
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
-    }
-
-    // --- MODAL FUNCTIONS ---
-    function showModal(message) {
-        modalMessage.textContent = message;
-        modal.style.display = 'flex';
-    }
-
-    function hideModal() {
-        modal.style.display = 'none';
-    }
-
-    // --- RENDER FUNCTIONS ---
-    function showPage(pageId) {
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.getElementById(pageId).classList.add('active');
-    }
-
-    function renderCentralView(viewId) {
-        document.querySelectorAll('.main-content-view').forEach(v => v.classList.remove('active'));
-        document.getElementById(viewId).classList.add('active');
-    }
-    
-    function renderRightSidebar() {
-        // MSBTE logo and name
-        const msbteLogo = 'https://play-lh.googleusercontent.com/69Liz0_qRqvT9kZCQHow1anTKwRr59EbvrLkZ9-oXETnCajZ_9UiM-BRbUv3l5RSfic';
-        const panelHTML = `
-            <div id="msbte-panel" class="rounded-lg shadow-md border border-stone-300 overflow-hidden" style="background-color: var(--bg-parchment);">
-                <div class="text-center p-3 msbte-panel-header" style="background: linear-gradient(90deg, #2563eb 0%, #60a5fa 100%);">
-                    <img src="${msbteLogo}" alt="MSBTE Logo" onerror="this.onerror=null;this.src='https://placehold.co/64x64/ffffff/2563eb?text=MSBTE';" class="mx-auto h-16 w-16 mb-2 bg-white rounded-full p-1 border-2" style="border-color: var(--support);">
-                    <h3 class="font-bold text-white text-md">MSBTE</h3>
-                    <p class="text-xs text-white/90">Maharashtra State Board of Technical Education</p>
-                </div>
-                <div class="p-4">
-                    <h4 class="font-bold mb-2" style="color: var(--primary);">MSBTE Circulars</h4>
-                    <div class="marquee-container text-sm">
-                        <ul id="msbte-circulars-list" class="marquee">
-                            <li class="notice-item"><span class="text-stone-500">Loading MSBTE circulars...</span></li>
-                        </ul>
-                    </div>
-                    <div class="mt-2 text-xs text-stone-500 text-center">
-                        <span id="msbte-last-updated">Source: <a href='https://msbte.ac.in/all_circulars' target='_blank' class='text-blue-600 hover:underline'>MSBTE Official Circulars</a></span>
-                        <br>
-                        <button onclick="loadMsbteCirculars()" class="text-xs text-blue-600 hover:text-blue-800 underline mt-1">🔄 Refresh</button>
-                    </div>
-                </div>
-            </div>
-        `;
-        rightSidebarPanel.innerHTML = panelHTML;
-        // Load circulars on sidebar render
-        window.loadMsbteCirculars();
-    }
-
-    function getSubjectEmoji(subjectTitle) {
-        const keywords = { 'Math': '🔢', 'Programming': '💻', 'Electronics': '⚡️', 'Data': '💾', 'Web': '🌐', 'OOP': '🧩', 'Java': '☕️', 'Network': '📶', 'Mechanics': '⚙️', 'Thermodynamics': '🔥', 'Security': '🛡️', 'Project': '📂', 'Software': '📝', 'Communication': '📡', 'Skills': '🗣️', 'Graphics': '🎨', 'Science': '�', 'Workshop': '🛠️', 'Electrical': '💡', 'Constitution': '⚖️', 'Python': '🐍', 'Analog': '📈', 'Digital': '🔢', 'Circuits': '🔗', 'Measurements': '📏', 'Environmental': '🌳', 'Microcontroller': '🤖', 'Consumer': '🛍️', 'Power': '🔌', 'Maintenance': '🔧', 'Elective': '⭐', 'Entrepreneurship': '💼', 'Embedded': '🧠', 'Mobile': '📱', 'Seminar': '🧑‍🏫', 'Internship': '👨‍💼', 'IOT': '☁️', 'Microwave': '📡', 'Management': '📊', 'Trends': '🚀', 'Optical': '💡', 'Satellite': '🛰️', 'Capstone': '🎓', 'Drone': '🚁', 'Control': '🎛️', 'VLSI': '칩' };
-        for (const key in keywords) { if (subjectTitle.includes(key)) return keywords[key]; }
-        return '📚';
-    }
-
-    function renderDashboard() {
-        if (!appState.isAuthenticated) {
-            showPage('landing-layout');
-            return;
-        }
-
-        document.getElementById('dashboard-user-name').textContent = `Welcome, ${appState.currentUser}`;
-        let contentHTML = '';
-
-        const branchKey = branchSemesterSubject[appState.currentBranch] ? appState.currentBranch : 'Other';
-
-        if (appState.dashboardView === 'semesters') {
-            const semesters = Object.keys(branchSemesterSubject[branchKey] || {});
-            const semIcons = ['I', 'II', 'III', 'IV', 'V', 'VI'];
-            contentHTML = `
-                <div class="mb-8 text-center">
-                    <p class="text-lg text-stone-600">You are viewing materials for:</p>
-                    <h2 class="text-4xl font-black text-transparent bg-clip-text" style="background-image: linear-gradient(to right, var(--primary), var(--accent));">${branchSemesterSubject[appState.currentBranch] ? branchSemesterSubject[appState.currentBranch][appState.currentSemester][0].includes('Semester') ? getSubjectEmoji(branchSemesterSubject[appState.currentBranch][appState.currentSemester][0]) : getSubjectEmoji(branchSemesterSubject[appState.currentBranch][appState.currentSemester][0]) : ''} ${appState.currentBranch}</h2>
-                    <p class="mt-6 text-xl font-bold text-stone-700 font-decorative">Select a Semester</p>
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    ${semesters.map((sem, index) => `
-                        <button data-semester="${sem}" class="semester-card bg-white p-6 rounded-lg shadow-md border-2 border-transparent hover:border-amber-500 hover:shadow-xl transition-all flex items-center gap-4" style="background-color: var(--bg-parchment);">
-                            <div class="flex-shrink-0 w-12 h-12 text-white flex items-center justify-center rounded-full font-bold text-xl" style="background-color: var(--primary);">${semIcons[index] || index + 1}</div>
-                            <div>
-                                <h3 class="text-xl font-bold" style="color: var(--primary);">📜 ${sem}</h3>
-                                <p class="text-stone-500 mt-1">View subjects for this semester.</p>
-                            </div>
-                        </button>`).join('')}
-                </div>`;
-        } else if (appState.dashboardView === 'subjects') {
-             const subjects = (branchSemesterSubject[branchKey] || {})[appState.currentSemester] || [];
-             contentHTML = `
-                <div class="mb-6">
-                    <button id="back-to-semesters" class="font-semibold hover:underline" style="color: var(--primary);">&larr; Back to Semesters</button>
-                </div>
-                <h3 class="text-3xl font-bold mb-6 text-center font-decorative" style="color: var(--primary);">Subjects for ${appState.currentSemester}</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    ${subjects.length > 0 ? subjects.map(subject => `
-                        <button data-subject="${subject}" class="subject-card bg-white p-6 rounded-lg shadow-md border-2 border-transparent hover:border-amber-500 hover:shadow-xl transition-all flex flex-col items-center justify-center text-center gap-3" style="background-color: var(--bg-parchment);">
-                           <div class="text-5xl">${getSubjectEmoji(subject)}</div>
-                           <h4 class="text-lg font-bold" style="color: var(--primary);">${subject}</h4>
-                        </button>
-                    `).join('') : '<p class="text-stone-500 text-center col-span-full">No subjects listed yet.</p>'}
-                </div>
-            `;
-        } else if (appState.dashboardView === 'materials') {
-            const branch = appState.currentBranch;
-            const semester = appState.currentSemester;
-            const subject = appState.currentSubject;
-            const jwt = localStorage.getItem('dg_jwt');
-            // Render loading state
-            contentHTML = `
-                <div class="mb-6">
-                    <button id="back-to-subjects" class="font-semibold hover:underline" style="color: var(--primary);">&larr; Back to Subjects</button>
-                </div>
-                <div class="p-6 rounded-lg shadow-md border" style="background-color: var(--bg-parchment);">
-                     <h3 class="text-2xl font-bold mb-4" style="color: var(--primary);">Materials for ${subject}</h3>
-                     <div class="space-y-3" id="materials-list-loading">
-                        <p class="text-gray-500">Loading resources...</p>
-                    </div>
-                </div>`;
-            dashboardContent.innerHTML = contentHTML;
-            showPage('student-dashboard-page');
-            // Add event listener for back button
-            document.getElementById('back-to-subjects').addEventListener('click', () => {
-                appState.dashboardView = 'subjects';
-                renderDashboard();
-            });
-            // Fetch real resources from backend
-            fetch(`/api/materials?branch=${encodeURIComponent(branch)}&semester=${encodeURIComponent(semester)}&subject=${encodeURIComponent(subject)}`, {
-                headers: jwt ? { 'Authorization': `Bearer ${jwt}` } : {}
-            })
-            .then(res => res.json())
-            .then(materials => {
-                // Category mapping with emoji and display name
-                const resourceCategories = [
-                    { key: 'syllabus', emoji: '📜', name: 'Syllabus' },
-                    { key: 'manual_answer', emoji: '✍️', name: 'Manual Answer' },
-                    { key: 'guessing_papers', emoji: '🤔', name: 'Guessing Papers' },
-                    { key: 'model_answers', emoji: '✅', name: 'Model Answer Papers' },
-                    { key: 'msbte_imp', emoji: '✨', name: 'MSBTE IMP' },
-                    { key: 'micro_project', emoji: '🔬', name: 'Micro Project Topics' },
-                    { key: 'notes', emoji: '📝', name: 'Notes' }
-                ];
-                const resourceHTML = resourceCategories.map(opt => {
-                    const found = (materials || []).filter(m => m.category === opt.key);
-                    if (found.length > 0) {
-                        return found.map(mat => `
-                            <div class="p-3 border border-stone-200 rounded-lg flex items-center justify-between bg-white/50">
-                                <p class="font-semibold flex items-center"><span class="mr-3">${opt.emoji}</span> ${opt.name}</p>
-                                <a href="${mat.fileUrl}" target="_blank" class="download-btn btn-primary font-bold py-1 px-3 rounded-md text-sm" data-id="${mat._id}" data-category="${opt.name}">View</a>
-                            </div>
-                        `).join('');
-                    } else {
-                        return `<div class="p-3 border border-stone-200 rounded-lg flex items-center justify-between bg-white/50 opacity-60">
-                            <p class="font-semibold flex items-center"><span class="mr-3">${opt.emoji}</span> ${opt.name}</p>
-                            <span class="text-xs text-gray-400">Not uploaded yet</span>
-                        </div>`;
-                    }
-                }).join('');
-                document.getElementById('materials-list-loading').innerHTML = resourceHTML;
-                // Add download tracking
-                document.querySelectorAll('.download-btn').forEach(btn => {
-                    btn.addEventListener('click', function(e) {
-                        // Track download
-                        const materialId = btn.getAttribute('data-id');
-                        fetch(`/api/materials/${materialId}/download`, {
-                            method: 'POST',
-                            headers: jwt ? { 'Authorization': `Bearer ${jwt}` } : {}
-                        });
-                    });
-                });
-            })
-            .catch(() => {
-                document.getElementById('materials-list-loading').innerHTML = '<p class="text-red-500">Failed to load resources.</p>';
-            });
-            return;
-        }
-        
-        dashboardContent.innerHTML = contentHTML;
-        showPage('student-dashboard-page');
-        addDashboardEventListeners();
-    }
-
-    // --- EVENT LISTENERS (Updated Flow) ---
-    function addDashboardEventListeners() {
-        if (appState.dashboardView === 'semesters') {
-            document.querySelectorAll('.semester-card').forEach(card => {
-                card.addEventListener('click', (e) => {
-                    appState.currentSemester = e.currentTarget.dataset.semester;
-                    appState.dashboardView = 'subjects'; // Go to subjects view
-                    renderDashboard();
-                });
-            });
-        } else if (appState.dashboardView === 'subjects') {
-            document.getElementById('back-to-semesters').addEventListener('click', () => {
-                appState.dashboardView = 'semesters';
-                renderDashboard();
-            });
-            document.querySelectorAll('.subject-card').forEach(card => {
-                card.addEventListener('click', (e) => {
-                    appState.currentSubject = e.currentTarget.dataset.subject;
-                    appState.dashboardView = 'materials'; // Go to materials view
-                    renderDashboard();
-                });
-            });
-        } else if (appState.dashboardView === 'materials') {
-            document.getElementById('back-to-subjects').addEventListener('click', () => {
-                appState.dashboardView = 'subjects';
-                renderDashboard();
-            });
-        }
-    }
-    
-    function toggleSidebar() {
-        leftSidebar.classList.toggle('-translate-x-full');
-        sidebarOverlay.classList.toggle('hidden');
-    }
-    
-    // --- INITIALIZATION ---
-    function init() {
-        // Hardcoded college and branch lists for registration
-        const colleges = [
-            'Government Polytechnic, Awasari (Kh.)',
-            'Government Polytechnic, Pune',
-            'Government Polytechnic, Mumbai',
-            'Government Polytechnic, Nagpur',
-            'Government Polytechnic, Aurangabad',
-            'Government Polytechnic, Nashik',
-            'Government Polytechnic, Kolhapur',
-            'Government Polytechnic, Solapur',
-            'Government Polytechnic, Amravati'
-        ];
-        const branches = [
-            'Computer Engineering',
-            'Mechanical Engineering',
-            'Electrical Engineering',
-            'Civil Engineering',
-            'Electronics & Telecommunication',
-            'Information Technology',
-            'Chemical Engineering',
-            'Automobile Engineering',
-            'Production Engineering',
-            'Textile Technology',
-            'Metallurgy',
-            'Instrumentation',
-            'Plastic Technology',
-            'Printing Technology',
-            'Other'
-        ];
-        collegeSelects.forEach(select => select.innerHTML = colleges.map(c => `<option value="${c}">${c}</option>`).join(''));
-        branchSelects.forEach(select => select.innerHTML = branches.map(b => `<option value="${b}">${b}</option>`).join(''));
-
-        // Always render MSBTE panel in right sidebar
-        renderRightSidebar();
-
-        // --- MENU DROPDOWN LOGIC ---
-        const menuHeader = document.getElementById('menu-header');
-        const menuContent = document.getElementById('menu-content');
-        const menuToggleIcon = document.getElementById('menu-toggle-icon');
-        menuHeader.setAttribute('tabindex', '0');
-        menuHeader.setAttribute('role', 'button');
-        menuHeader.setAttribute('aria-expanded', 'false');
-        menuHeader.setAttribute('aria-controls', 'menu-content');
-        function closeMenuDropdown() {
-            menuContent.classList.remove('open');
-            menuHeader.setAttribute('aria-expanded', 'false');
-        }
-        function openMenuDropdown() {
-            menuContent.classList.add('open');
-            menuHeader.setAttribute('aria-expanded', 'true');
-        }
-        menuHeader.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (menuContent.classList.contains('open')) {
-                closeMenuDropdown();
-            } else {
-                openMenuDropdown();
-            }
-        });
-        menuHeader.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                if (menuContent.classList.contains('open')) {
-                    closeMenuDropdown();
-                } else {
-                    openMenuDropdown();
-                }
-            }
-            if (e.key === 'Escape') {
-                closeMenuDropdown();
-            }
-        });
-        document.addEventListener('click', (e) => {
-            if (!menuHeader.contains(e.target) && !menuContent.contains(e.target)) {
-                closeMenuDropdown();
-            }
-        });
-        // Close on menu item click (optional)
-        menuContent.querySelectorAll('a').forEach(a => {
-            a.addEventListener('click', () => closeMenuDropdown());
-        });
-
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
-            if (!email || !password) {
-                showToast('Please enter your email and password.', 'error');
-                return;
-            }
-            try {
-                const res = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
-                });
-                const data = await res.json();
-                if (res.ok) {
-                    // Save JWT and user info for admin and student
-                    localStorage.setItem('dg_jwt', data.token);
-                    localStorage.setItem('dg_user', JSON.stringify(data.user));
-                    if (data.user.role === 'admin') {
-                        window.location.href = '/admin';
-                        return;
-                    } else if (data.user.role === 'student') {
-                        appState.isAuthenticated = true;
-                        appState.currentUser = data.user.name;
-                        appState.currentCollege = data.user.college;
-                        appState.currentBranch = data.user.branch;
-                        appState.dashboardView = 'semesters';
-                        renderDashboard();
-                        // Use setTimeout to ensure dashboard is rendered first
-                        setTimeout(() => {
-                            loadAnnouncements();
-                            showAnnouncementsPanel();
-                        }, 200);
-                        return;
-                    } else {
-                        showToast('Selected account does not have access.', 'error');
-                    }
-                } else {
-                    showToast(data.error || 'Login failed.', 'error');
-                }
-            } catch (err) {
-                showToast('Login failed. Please try again.', 'error');
-            }
-        });
-        
-        document.getElementById('register-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const name = document.getElementById('register-name').value;
-            const email = document.getElementById('register-email').value;
-            const phone = document.getElementById('register-phone').value;
-            const password = document.getElementById('register-password').value;
-            
-            // Get college value (handle custom input)
-            let college = document.getElementById('register-college').value;
-            if (college === 'Other') {
-                college = document.getElementById('register-custom-college-name').value.trim();
-            }
-            
-            // Get branch value (handle custom input)
-            let branch = document.getElementById('register-branch').value;
-            if (branch === 'Other') {
-                branch = document.getElementById('register-custom-branch-name').value.trim();
-            }
-            
-            if (!name || !email || !phone || !password || !college || !branch) {
-                showToast('Please fill in all fields.', 'error');
-                return;
-            }
-            
-            // Additional validation for custom inputs
-            if (document.getElementById('register-college').value === 'Other' && !college) {
-                showToast('Please enter a custom college name.', 'error');
-                return;
-            }
-            if (document.getElementById('register-branch').value === 'Other' && !branch) {
-                showToast('Please enter a custom branch name.', 'error');
-                return;
-            }
-            
-            const payload = { name, email, phone, password, college, branch };
-            try {
-                const res = await fetch('/api/auth/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await res.json();
-                if (res.ok) {
-                    showToast('Registration Successful! Please login.', 'success');
-                    renderCentralView('login-view');
-                } else {
-                    showToast(data.error || 'Registration failed.', 'error');
-                }
-            } catch (err) {
-                showToast('Registration failed. Please try again.', 'error');
-            }
-        });
-
-        document.getElementById('logout-btn').addEventListener('click', () => {
-            appState.isAuthenticated = false;
-            appState.currentUser = 'Guest';
-            renderRightSidebar();
-            hideAnnouncementsPanel();
-            showPage('landing-layout');
-            renderCentralView('login-view');
-        });
-
-        // Add event listener for announcements button
-        const announcementsBtn = document.getElementById('show-announcements-btn');
-        if (announcementsBtn) {
-            announcementsBtn.addEventListener('click', () => {
-                console.log('Announcements button clicked!');
-                loadAnnouncements();
-                showAnnouncementsPanel();
-            });
-        } else {
-            console.error('Announcements button not found!');
-        }
-        
-        sidebarToggleBtn.addEventListener('click', toggleSidebar);
-        sidebarOverlay.addEventListener('click', toggleSidebar);
-        
-        leftSidebar.addEventListener('click', (e) => {
-            if (e.target.matches('.sidebar-nav-link')) {
-                e.preventDefault();
-                if (e.target.id === 'show-register-from-link') {
-                    renderCentralView('register-view');
-                }
-                if (window.innerWidth < 768) {
-                    toggleSidebar();
-                }
-            }
-        });
-
-        document.getElementById('show-register-btn').addEventListener('click', () => renderCentralView('register-view'));
-        document.getElementById('show-login-btn').addEventListener('click', () => renderCentralView('login-view'));
-        
-        document.getElementById('register-college').addEventListener('change', (e) => {
-            renderRightSidebar();
-            // Handle custom college input
-            const customCollegeInput = document.getElementById('register-custom-college-input');
-            if (e.target.value === 'Other') {
-                customCollegeInput.style.display = 'block';
-                document.getElementById('register-custom-college-name').required = true;
-            } else {
-                customCollegeInput.style.display = 'none';
-                document.getElementById('register-custom-college-name').required = false;
-                document.getElementById('register-custom-college-name').value = '';
-            }
-        });
-
-        // Handle custom branch input in registration form
-        document.getElementById('register-branch').addEventListener('change', (e) => {
-            const customBranchInput = document.getElementById('register-custom-branch-input');
-            if (e.target.value === 'Other') {
-                customBranchInput.style.display = 'block';
-                document.getElementById('register-custom-branch-name').required = true;
-            } else {
-                customBranchInput.style.display = 'none';
-                document.getElementById('register-custom-branch-name').required = false;
-                document.getElementById('register-custom-branch-name').value = '';
-            }
-        });
-
-        modalCloseBtn.addEventListener('click', hideModal);
-    }
-
-    // --- ANNOUNCEMENT FUNCTIONS ---
-    
-    // Show announcements panel
-    function showAnnouncementsPanel() {
-        const announcementsPanel = document.getElementById('announcements-panel');
-        const collegePanel = document.getElementById('college-panel');
-        console.log('Showing announcements panel:', announcementsPanel, collegePanel);
-        console.log('Announcements panel classes:', announcementsPanel?.className);
-        console.log('College panel classes:', collegePanel?.className);
-        console.log('Right sidebar panel:', document.getElementById('right-sidebar-panel'));
-        console.log('All divs in right sidebar:', document.querySelectorAll('#right-sidebar-panel > div'));
-        
-        if (announcementsPanel && collegePanel) {
-            collegePanel.classList.add('hidden');
-            announcementsPanel.classList.remove('hidden');
-            console.log('Announcements panel should now be visible');
-        } else {
-            console.error('Could not find announcements panel or college panel');
-            console.log('Available elements in right sidebar:', document.querySelectorAll('#right-sidebar-panel > div'));
-        }
-    }
-
-    // Hide announcements panel
-    function hideAnnouncementsPanel() {
-        const announcementsPanel = document.getElementById('announcements-panel');
-        const collegePanel = document.getElementById('college-panel');
-        if (announcementsPanel && collegePanel) {
-            announcementsPanel.classList.add('hidden');
-            collegePanel.classList.remove('hidden');
-        }
-    }
-
-    // Load announcements from API
-    async function loadAnnouncements() {
-        const container = document.getElementById('announcements-content');
-        if (!container) {
-            console.error('Could not find announcements-content container');
-            return;
-        }
-
-        console.log('Loading announcements...');
-        container.innerHTML = '<p class="text-gray-500 text-sm">Loading announcements...</p>';
-        
-        try {
-            const token = localStorage.getItem('dg_jwt');
-            if (!token) {
-                container.innerHTML = '<p class="text-gray-500 text-sm">Please login to view announcements</p>';
-                return;
-            }
-
-            console.log('Fetching announcements with token:', token ? 'Token exists' : 'No token');
-            const response = await fetch('/api/announcements', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            console.log('Announcements response status:', response.status);
-            if (response.ok) {
-                const announcements = await response.json();
-                console.log('Announcements received:', announcements);
-                
-                if (!announcements.length) {
-                    container.innerHTML = '<p class="text-gray-500 text-sm">No announcements available</p>';
-                    return;
-                }
-
-                const announcementsHTML = announcements.map(a => {
-                    const priorityColors = {
-                        'low': 'bg-green-100 text-green-800',
-                        'medium': 'bg-yellow-100 text-yellow-800',
-                        'high': 'bg-orange-100 text-orange-800',
-                        'critical': 'bg-red-100 text-red-800'
-                    };
-                    const typeColors = {
-                        'general': 'bg-blue-100 text-blue-800',
-                        'important': 'bg-purple-100 text-purple-800',
-                        'urgent': 'bg-red-100 text-red-800',
-                        'maintenance': 'bg-gray-100 text-gray-800'
-                    };
-
-                    const typeIcon = {
-                        'general': '📢',
-                        'important': '⚠️',
-                        'urgent': '🚨',
-                        'maintenance': '🔧'
-                    };
-
-                    return `
-                        <div class="p-3 border border-stone-200 rounded-lg bg-white/50 hover:shadow-sm transition-shadow">
-                            <div class="flex items-start gap-2 mb-2">
-                                <span class="text-lg">${typeIcon[a.type] || '📢'}</span>
-                                <div class="flex-1">
-                                    <h4 class="font-semibold text-sm" style="color: var(--primary);">${a.title}</h4>
-                                    <div class="flex items-center gap-1 mt-1">
-                                        <span class="px-1.5 py-0.5 text-xs rounded ${typeColors[a.type] || 'bg-gray-100 text-gray-800'}">${a.type}</span>
-                                        <span class="px-1.5 py-0.5 text-xs rounded ${priorityColors[a.priority] || 'bg-gray-100 text-gray-800'}">${a.priority}</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <p class="text-xs text-stone-600 mb-2">${a.content}</p>
-                            <div class="text-xs text-stone-400">
-                                ${new Date(a.createdAt).toLocaleDateString()}
-                                ${a.expiresAt ? ` • Expires: ${new Date(a.expiresAt).toLocaleDateString()}` : ''}
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-
-                container.innerHTML = announcementsHTML;
-            } else {
-                container.innerHTML = '<p class="text-red-500 text-sm">Failed to load announcements</p>';
-            }
-        } catch (error) {
-            console.error('Announcements load error:', error);
-            container.innerHTML = '<p class="text-red-500 text-sm">Failed to load announcements</p>';
-        }
-    }
-
-    // Initialize Socket.IO for real-time announcements
-    let socket = null;
-    
-    function initializeSocket() {
-        socket = io();
-        
-        socket.on('connect', () => {
-            console.log('Connected to server for announcements');
-        });
-
-        socket.on('new-announcement', (data) => {
-            showToast(`New announcement: ${data.title}`, 'info');
-            if (appState.isAuthenticated) {
-                loadAnnouncements();
-            }
-        });
-
-        socket.on('announcement-updated', (data) => {
-            if (appState.isAuthenticated) {
-                loadAnnouncements();
-            }
-        });
-
-        socket.on('announcement-deleted', (data) => {
-            if (appState.isAuthenticated) {
-                loadAnnouncements();
-            }
-        });
-    }
-
-    // Initialize socket connection
-    initializeSocket();
-
-    // --- MSBTE CIRCULARS FETCH LOGIC ---
-    window.loadMsbteCirculars = async function() {
-        const circularsList = document.getElementById('msbte-circulars-list');
-        if (!circularsList) return;
-        circularsList.innerHTML = '<li class="notice-item"><span class="text-stone-500">Loading MSBTE circulars...</span></li>';
-        try {
-            // Placeholder: In production, fetch from your backend API that scrapes/proxies MSBTE circulars
-            // Example fake data:
-            const fakeCirculars = [
-                { title: 'Summer 2024 Exam Timetable Released', link: 'https://msbte.ac.in/all_circulars', date: '2024-05-01' },
-                { title: 'Revised Syllabus for Diploma Courses', link: 'https://msbte.ac.in/all_circulars', date: '2024-04-15' },
-                { title: 'MSBTE Scholarship Notification', link: 'https://msbte.ac.in/all_circulars', date: '2024-04-10' }
-            ];
-            // Simulate network delay
-            await new Promise(r => setTimeout(r, 800));
-            const circularsHTML = fakeCirculars.map(circ =>
-                `<li class="notice-item">
-                    <a href="${circ.link}" class="text-blue-600 hover:text-blue-800" target="_blank">
-                        <span class="font-semibold">${circ.title}</span>
-                        <span class="text-xs text-stone-400 ml-2">${circ.date}</span>
-                    </a>
-                </li>`
-            ).join('');
-            circularsList.innerHTML = circularsHTML;
-        } catch (err) {
-            circularsList.innerHTML = '<li class="notice-item"><span class="text-red-500">Failed to load MSBTE circulars.</span></li>';
-        }
-    }
-
-    // Add event delegation for announcements button (in case it's added dynamically)
-    document.addEventListener('click', function(e) {
-        if (e.target && e.target.id === 'show-announcements-btn') {
-            console.log('Announcements button clicked via event delegation!');
-            loadAnnouncements();
-            showAnnouncementsPanel();
-        }
-    });
-
-    init();
-    
-    // Load college notices after initialization
-    setTimeout(() => {
-       
-    }, 100);
-});
-</script>
-</body>
-</html>
+// ... existing code ...
+// In the HTML, ensure all flex, grid, and padding classes use responsive Tailwind classes (e.g., p-4 md:p-6, flex-col md:flex-row, w-full md:w-1/3, etc.)
+// ... existing code ...

@@ -39,6 +39,40 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 });
 
+// Get material download logs (admin only)
+router.get('/download-logs', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Not authorized' });
+        }
+        const MaterialDownloadLog = require('../models/MaterialDownloadLog');
+        const { material, user, startDate, endDate } = req.query;
+        const filter = {};
+        if (material) filter.material = material;
+        if (user) filter.user = user;
+        if (startDate || endDate) {
+            filter.downloadedAt = {};
+            if (startDate) filter.downloadedAt.$gte = new Date(startDate);
+            if (endDate) filter.downloadedAt.$lte = new Date(endDate);
+        }
+        let logs;
+        try {
+            logs = await MaterialDownloadLog.find(filter)
+                .populate({ path: 'user', select: 'name email', options: { strictPopulate: false } })
+                .populate({ path: 'material', select: 'title subject branch semester category', options: { strictPopulate: false } })
+                .sort({ downloadedAt: -1 })
+                .limit(200);
+        } catch (popErr) {
+            console.error('Populate error in download logs:', popErr);
+            logs = await MaterialDownloadLog.find(filter).sort({ downloadedAt: -1 }).limit(200);
+        }
+        res.json(logs);
+    } catch (error) {
+        console.error('Download logs fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch download logs', details: error.message });
+    }
+});
+
 // Get material by ID
 router.get('/:id', authenticateToken, async (req, res) => {
     try {
@@ -227,40 +261,6 @@ router.get('/category/:category', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error('Category materials fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch materials by category' });
-    }
-});
-
-// Get material download logs (admin only)
-router.get('/download-logs', authenticateToken, async (req, res) => {
-    try {
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ error: 'Not authorized' });
-        }
-        const MaterialDownloadLog = require('../models/MaterialDownloadLog');
-        const { material, user, startDate, endDate } = req.query;
-        const filter = {};
-        if (material) filter.material = material;
-        if (user) filter.user = user;
-        if (startDate || endDate) {
-            filter.downloadedAt = {};
-            if (startDate) filter.downloadedAt.$gte = new Date(startDate);
-            if (endDate) filter.downloadedAt.$lte = new Date(endDate);
-        }
-        let logs;
-        try {
-            logs = await MaterialDownloadLog.find(filter)
-                .populate({ path: 'user', select: 'name email', options: { strictPopulate: false } })
-                .populate({ path: 'material', select: 'title subject branch semester category', options: { strictPopulate: false } })
-                .sort({ downloadedAt: -1 })
-                .limit(200);
-        } catch (popErr) {
-            console.error('Populate error in download logs:', popErr);
-            logs = await MaterialDownloadLog.find(filter).sort({ downloadedAt: -1 }).limit(200);
-        }
-        res.json(logs);
-    } catch (error) {
-        console.error('Download logs fetch error:', error);
-        res.status(500).json({ error: 'Failed to fetch download logs', details: error.message });
     }
 });
 
