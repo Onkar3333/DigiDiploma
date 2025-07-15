@@ -3,6 +3,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const { logCollegeNoticesRefresh } = require('../utils/logger');
 const router = express.Router();
+const fetch = require('node-fetch');
 
 // Cache for notices to avoid too many requests
 let noticesCache = {
@@ -230,6 +231,59 @@ async function fetchCollegeNotices() {
         ];
     }
 }
+
+// GET /msbte-circulars - Fetch and parse latest MSBTE circulars
+router.get('/msbte-circulars', async (req, res) => {
+    try {
+        const response = await fetch('https://msbte.ac.in/all_circulars', {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+        });
+        const html = await response.text();
+        const $ = cheerio.load(html);
+        const circulars = [];
+        let foundTable = false;
+        $('table').each((i, table) => {
+            const headers = $(table).find('tr').first().find('th,td').map((i, th) => $(th).text().trim()).get();
+            console.log('Table', i, 'RAW headers:', headers);
+            if (i === 0) {
+                console.log('First table HTML:', $(table).html());
+            }
+            const headersLower = headers.map(h => h.toLowerCase());
+            if (headersLower.includes('news') && headersLower.includes('date')) {
+                foundTable = true;
+                const rows = $(table).find('tr').slice(1);
+                console.log('Found circulars table with', rows.length, 'rows');
+                rows.slice(0, 3).each((j, row) => {
+                    console.log('Sample row', j, ':', $(row).html());
+                });
+                rows.each((j, row) => {
+                    const tds = $(row).find('td');
+                    if (tds.length >= 3) {
+                        const date = $(tds[1]).text().trim();
+                        const linkElem = $(tds[2]).find('a');
+                        const title = linkElem.text().trim();
+                        let link = linkElem.attr('href') || '';
+                        if (link && !link.startsWith('http')) {
+                            link = `https://msbte.ac.in${link}`;
+                        }
+                        if (title && link) {
+                            circulars.push({ title, link, date });
+                        }
+                    }
+                });
+            }
+        });
+        if (!foundTable) {
+            console.log('No circulars table found with expected headers.');
+        }
+        res.json(circulars.slice(0, 10));
+    } catch (err) {
+        console.error('MSBTE circulars fetch error:', err);
+        res.status(500).json({ error: 'Failed to fetch MSBTE circulars', details: err.message });
+    }
+});
 
 // Get all notices
 router.get('/', async (req, res) => {

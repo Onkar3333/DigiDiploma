@@ -116,6 +116,7 @@ app.use('/api/student', require('./routes/student'));
 app.use('/api/materials', require('./routes/materials'));
 app.use('/api/announcements', require('./routes/announcements'));
 app.use('/api/notices', require('./routes/notices'));
+app.use('/api', require('./routes/notices'));
 app.use('/api/quizzes', require('./routes/quizzes'));
 app.use('/api/subscriptions', require('./routes/subscriptions'));
 
