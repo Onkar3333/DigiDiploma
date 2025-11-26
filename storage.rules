@@ -1,0 +1,28 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow authenticated users to upload files
+    match /materials/{allPaths=**} {
+      allow read: if true; // Public read access for study materials
+      allow write: if request.auth != null && 
+        (request.auth.token.userType == 'admin' || 
+         request.auth.token.userType == 'student');
+    }
+    
+    // User profile images
+    match /users/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Admin uploads
+    match /admin/{allPaths=**} {
+      allow read, write: if request.auth != null && 
+        request.auth.token.userType == 'admin';
+    }
+    
+    // Default rule - deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
