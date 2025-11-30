@@ -8,7 +8,10 @@ import {
   Award,
   BarChart3,
   Zap,
-  RefreshCw
+  RefreshCw,
+  Mail,
+  FolderKanban,
+  Briefcase
 } from 'lucide-react';
 
 type DashboardSummaryStats = {
@@ -22,6 +25,15 @@ type DashboardSummaryStats = {
   avgRating?: number;
 };
 
+interface AdminNotification {
+  id: string;
+  type: 'contact' | 'project' | 'internship' | 'notice';
+  title: string;
+  description?: string;
+  timestamp: string;
+  read: boolean;
+}
+
 interface ModernAdminDashboardProps {
   users: any[];
   materials: any[];
@@ -29,6 +41,7 @@ interface ModernAdminDashboardProps {
   maintenanceMode: boolean;
   summary?: DashboardSummaryStats | null;
   summaryLoading?: boolean;
+  notifications?: AdminNotification[];
   onQuickAction?: (key: string) => void;
   onRefreshSummary?: () => void;
 }
@@ -40,6 +53,7 @@ const ModernAdminDashboard: React.FC<ModernAdminDashboardProps> = ({
   maintenanceMode,
   summary,
   summaryLoading,
+  notifications = [],
   onQuickAction,
   onRefreshSummary
 }) => {
@@ -74,7 +88,36 @@ const ModernAdminDashboard: React.FC<ModernAdminDashboardProps> = ({
     averageRating: typeof summary.avgRating === 'number' ? summary.avgRating : derivedStats.averageRating
   } : derivedStats;
 
-  const recentNotices = Array.isArray(summary?.notices) ? summary!.notices.slice(0, 4) : [];
+  // Combine notices and notifications for display
+  const noticeItems = Array.isArray(summary?.notices) 
+    ? summary!.notices.map((notice: any) => ({
+        id: notice.id || `notice-${notice._id}`,
+        type: 'notice' as const,
+        title: notice.title || 'Untitled Notice',
+        description: notice.content || '',
+        timestamp: notice.createdAt || new Date().toISOString(),
+        read: false,
+        author: notice.author || 'Admin'
+      }))
+    : [];
+
+  // Convert notifications to display format
+  const notificationItems = Array.isArray(notifications)
+    ? notifications.map((notif) => ({
+        id: notif.id,
+        type: notif.type,
+        title: notif.title,
+        description: notif.description || '',
+        timestamp: notif.timestamp,
+        read: notif.read,
+        author: notif.type === 'contact' ? 'Contact Form' : notif.type === 'project' ? 'Project Request' : 'Internship'
+      }))
+    : [];
+
+  // Combine and sort by timestamp (newest first)
+  const allRecentItems = [...noticeItems, ...notificationItems]
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 6); // Show up to 6 items
 
   const quickActions = [
     { key: 'create_notice', title: 'Create Notice', description: 'Publish a new notice', icon: Bell, color: 'blue' },
@@ -84,12 +127,12 @@ const ModernAdminDashboard: React.FC<ModernAdminDashboardProps> = ({
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 min-w-0">
       {/* Welcome Section */}
-      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-3xl p-8 text-white relative overflow-hidden">
+      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent"></div>
         <div className="relative z-10">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
                 <Activity className="w-8 h-8" />
@@ -133,7 +176,7 @@ const ModernAdminDashboard: React.FC<ModernAdminDashboardProps> = ({
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <Card className="group hover:shadow-xl transition-all duration-300 border-0 bg-white/70 backdrop-blur-sm">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
@@ -204,7 +247,7 @@ const ModernAdminDashboard: React.FC<ModernAdminDashboardProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {quickActions.map((action, index) => (
               <div 
                 key={index} 
@@ -231,7 +274,7 @@ const ModernAdminDashboard: React.FC<ModernAdminDashboardProps> = ({
 
       {/* Recent Notices & Status */}
       <Card>
-        <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <Bell className="w-5 h-5 text-blue-600" />
             <CardTitle>Recent Notices & Status</CardTitle>
@@ -246,26 +289,74 @@ const ModernAdminDashboard: React.FC<ModernAdminDashboardProps> = ({
           </span>
         </CardHeader>
         <CardContent>
-          {recentNotices.length > 0 ? (
-            <div className="space-y-4">
-              {recentNotices.map((notice) => (
-                <div
-                  key={notice.id}
-                  className="rounded-2xl border border-slate-100 bg-white/90 px-4 py-3 shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-slate-900">{notice.title}</p>
-                      <p className="text-xs text-slate-500">by {notice.author || 'Admin'}</p>
+          {allRecentItems.length > 0 ? (
+            <div className="overflow-y-auto max-h-96 space-y-3 pr-2">
+              {allRecentItems.map((item) => {
+                const getIcon = () => {
+                  switch (item.type) {
+                    case 'contact':
+                      return <Mail className="w-4 h-4 text-blue-600" />;
+                    case 'project':
+                      return <FolderKanban className="w-4 h-4 text-purple-600" />;
+                    case 'internship':
+                      return <Briefcase className="w-4 h-4 text-orange-600" />;
+                    default:
+                      return <Bell className="w-4 h-4 text-indigo-600" />;
+                  }
+                };
+
+                const getTypeLabel = () => {
+                  switch (item.type) {
+                    case 'contact':
+                      return 'Contact Message';
+                    case 'project':
+                      return 'Project Request';
+                    case 'internship':
+                      return 'Internship Application';
+                    default:
+                      return 'Notice';
+                  }
+                };
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`w-full rounded-xl border px-4 py-3 shadow-sm hover:shadow-md transition-all ${
+                      !item.read 
+                        ? 'border-blue-200 bg-blue-50/50 border-l-4 border-l-blue-500' 
+                        : 'border-slate-100 bg-white/90'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-0.5 flex-shrink-0 ${!item.read ? 'animate-pulse' : ''}`}>
+                        {getIcon()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                              {!item.read && (
+                                <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse flex-shrink-0" />
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-500 mb-1">
+                              {item.description || `by ${item.author || 'Admin'}`}
+                            </p>
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400">
+                              {getTypeLabel()} • {formatNoticeDate(item.timestamp)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <span className="text-xs font-medium text-slate-500">{formatNoticeDate(notice.createdAt)}</span>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center text-sm text-slate-500">
-              No notices to display yet. Publish a notice and it will show up here instantly.
+              No recent activity. New notices, contact messages, and project requests will appear here.
             </div>
           )}
         </CardContent>

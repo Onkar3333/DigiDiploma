@@ -37,7 +37,6 @@ interface Project {
   isAdminProject: boolean;
   views: number;
   likes: number;
-  canDownload?: boolean;
   createdAt: string;
   coverPhoto?: string | null;
   simulationLink?: string;
@@ -91,6 +90,80 @@ const DEPARTMENT_SPOTLIGHTS = [
 ];
 
 const ACADEMIC_YEARS = ["2022-23", "2023-24", "2024-25", "2025-26"];
+
+// Utility function to convert R2 URLs to proxy URLs
+const getProxyUrl = (url: string | null | undefined): string => {
+  if (!url) return '';
+  
+  // Check if it's already a proxy URL
+  if (url.includes('/api/projects/proxy/')) {
+    return url;
+  }
+  
+  // Check if it's an R2 URL
+  if (url.includes('r2.cloudflarestorage.com')) {
+    // Extract the key from the R2 URL
+    // Format: https://[account-id].r2.cloudflarestorage.com/[bucket]/[key]
+    // or: https://[bucket].[account-id].r2.cloudflarestorage.com/[key]
+    let key = '';
+    
+    try {
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/').filter(Boolean);
+      
+      // Remove bucket name if it's the first part
+      if (pathParts.length > 1 && pathParts[0] === 'digidiploma') {
+        key = pathParts.slice(1).join('/');
+      } else {
+        key = pathParts.join('/');
+      }
+      
+      // If key starts with 'projects/', remove it (we'll add it in the proxy)
+      if (key.startsWith('projects/')) {
+        key = key.substring('projects/'.length);
+      }
+      
+      // If key starts with 'materials/', it might be a material file, keep as is
+      if (key.startsWith('materials/')) {
+        // Use materials proxy instead
+        return `/api/materials/proxy/r2/${encodeURIComponent(key)}`;
+      }
+      
+      return `/api/projects/proxy/r2/${encodeURIComponent(key)}`;
+    } catch (e) {
+      console.error('Error parsing R2 URL:', e);
+      return url;
+    }
+  }
+  
+  return url;
+};
+
+// Utility function to convert YouTube URLs to embed format
+const getYouTubeEmbedUrl = (url: string | null | undefined): string | null => {
+  if (!url) return null;
+  
+  // Check if already an embed URL
+  if (url.includes('youtube.com/embed/') || url.includes('youtu.be/')) {
+    return url;
+  }
+  
+  // Extract video ID from various YouTube URL formats
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+    /youtube\.com\/v\/([^&\n?#]+)/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return `https://www.youtube.com/embed/${match[1]}`;
+    }
+  }
+  
+  // If no match, return original URL (might be a different video platform)
+  return url;
+};
 const PROJECT_TYPES = [
   { label: "Mini Project", value: "mini" },
   { label: "Final Year Project", value: "final" }
@@ -115,7 +188,6 @@ const Projects = () => {
   const { toast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [studentProjects, setStudentProjects] = useState<Project[]>([]);
-  const [canDownload, setCanDownload] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -182,7 +254,6 @@ const Projects = () => {
   useEffect(() => {
     if (isAuthenticated) {
       fetchProjects();
-      checkDownloadPermission();
     } else {
       setLoading(false);
     }
@@ -219,20 +290,6 @@ const Projects = () => {
     return data.url as string;
   };
 
-  const checkDownloadPermission = async () => {
-    if (!user?.id) return;
-    try {
-      const res = await fetch(`/api/projects/${user.id}/can-download`, {
-        headers: { ...authService.getAuthHeaders() }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCanDownload(data.canDownload || false);
-      }
-    } catch (err) {
-      console.error('Error checking download permission:', err);
-    }
-  };
 
   const fetchProjects = async () => {
     if (!isAuthenticated) return;
@@ -250,15 +307,16 @@ const Projects = () => {
       // Separate admin and student projects
       const adminProjects = allProjects.filter((p: any) => p.isAdminProject && p.status === 'approved');
       
-      // Only admins can see student projects (excluding their own)
-      // Students can only see their own projects in "My Projects" tab
+      // Filter student projects
+      // Admins see all student projects
+      // Students see only their own projects (already filtered by backend, but we ensure it here too)
       let studentProjs: Project[] = [];
       if (user?.userType === 'admin') {
         // Admins see all student projects
         studentProjs = allProjects.filter((p: any) => !p.isAdminProject);
       } else {
-        // Students don't see other students' projects
-        studentProjs = [];
+        // Students see only their own projects (backend already filters, but we ensure it)
+        studentProjs = allProjects.filter((p: any) => !p.isAdminProject && p.studentId === user?.id);
       }
       
       setProjects(adminProjects);
@@ -338,7 +396,6 @@ const Projects = () => {
         });
         setUploadAssets({ documentFile: null, coverPhoto: null });
         fetchProjects();
-        checkDownloadPermission();
       } else {
         toast({ title: "Failed to submit project", variant: "destructive" });
       }
@@ -351,15 +408,6 @@ const Projects = () => {
     if (!isAuthenticated) {
       toast({ title: "Please login first", variant: "destructive" });
       window.location.href = '/?login=1';
-      return;
-    }
-    if (!canDownload) {
-      toast({
-        title: "Download Restricted",
-        description: "You must upload at least one project to unlock downloads.",
-        variant: "destructive"
-      });
-      setShowUploadDialog(true);
       return;
     }
     if (project.pdfUrl) {
@@ -611,25 +659,6 @@ const Projects = () => {
 
             {/* Admin Projects Tab */}
             <TabsContent value="admin" className="space-y-6">
-              {!canDownload && (
-                <Card className="border-orange-200 bg-orange-50">
-                  <CardContent className="p-6">
-                    <div className="flex items-start gap-4">
-                      <Lock className="w-6 h-6 text-orange-600 mt-1" />
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-orange-900 mb-2">Download Restricted</h3>
-                        <p className="text-orange-800 mb-4">
-                          To download any project, you must upload at least one project first.
-                        </p>
-                        <Button onClick={() => setShowUploadDialog(true)}>
-                          <Upload className="w-4 h-4 mr-2" />
-                          Upload Project
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
               {filteredAdminProjects.length === 0 ? (
                 <div className="text-center py-12">
                   <Code className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -638,12 +667,23 @@ const Projects = () => {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {filteredAdminProjects.map(project => {
-                    const previewImage = project.coverPhoto || project.imageUrls?.[0];
+                    const previewImage = getProxyUrl(project.coverPhoto || project.imageUrls?.[0]);
                     return (
                       <Card key={project.id} className="overflow-hidden hover:shadow-xl transition-all duration-200">
                         {previewImage && (
                           <div className="h-40 w-full overflow-hidden">
-                            <img src={previewImage} alt={project.title} className="h-full w-full object-cover" />
+                            <img 
+                              src={previewImage} 
+                              alt={project.title} 
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                // Fallback: try original URL if proxy fails
+                                const originalUrl = project.coverPhoto || project.imageUrls?.[0];
+                                if (originalUrl && originalUrl !== previewImage) {
+                                  e.currentTarget.src = originalUrl;
+                                }
+                              }}
+                            />
                           </div>
                         )}
                 <CardHeader>
@@ -687,7 +727,6 @@ const Projects = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => handleDownload(project)}
-                        disabled={!canDownload}
                       >
                         <Download className="w-4 h-4 mr-1" />
                         PDF
@@ -713,12 +752,23 @@ const Projects = () => {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredStudentProjects.map(project => {
-                      const previewImage = project.coverPhoto || project.imageUrls?.[0];
+                      const previewImage = getProxyUrl(project.coverPhoto || project.imageUrls?.[0]);
                       return (
                         <Card key={project.id} className="overflow-hidden hover:shadow-xl transition-all duration-200">
                           {previewImage && (
                             <div className="h-40 w-full overflow-hidden">
-                              <img src={previewImage} alt={project.title} className="h-full w-full object-cover" />
+                              <img 
+                                src={previewImage} 
+                                alt={project.title} 
+                                className="h-full w-full object-cover"
+                                onError={(e) => {
+                                  // Fallback: try original URL if proxy fails
+                                  const originalUrl = project.coverPhoto || project.imageUrls?.[0];
+                                  if (originalUrl && originalUrl !== previewImage) {
+                                    e.currentTarget.src = originalUrl;
+                                  }
+                                }}
+                              />
                             </div>
                           )}
                           <CardHeader>
@@ -1213,17 +1263,52 @@ const Projects = () => {
                 </div>
                 {selectedProject.imageUrls && selectedProject.imageUrls.length > 0 && (
                   <div className="grid grid-cols-2 gap-2">
-                    {selectedProject.imageUrls.map((url, i) => (
-                      <img key={i} src={url} alt={`Screenshot ${i + 1}`} className="rounded" />
-                    ))}
+                    {selectedProject.imageUrls.map((url, i) => {
+                      const proxyUrl = getProxyUrl(url);
+                      return (
+                        <img 
+                          key={i} 
+                          src={proxyUrl} 
+                          alt={`Screenshot ${i + 1}`} 
+                          className="rounded"
+                          onError={(e) => {
+                            // Fallback: try original URL if proxy fails
+                            if (url !== proxyUrl) {
+                              e.currentTarget.src = url;
+                            }
+                          }}
+                        />
+                      );
+                    })}
                   </div>
                 )}
                 {selectedProject.videoUrl && (
+                  <div className="w-full">
+                    {(() => {
+                      const embedUrl = getYouTubeEmbedUrl(selectedProject.videoUrl);
+                      if (embedUrl) {
+                        return (
                   <iframe
-                    src={selectedProject.videoUrl}
+                            src={embedUrl}
                     className="w-full h-64 rounded"
                     allowFullScreen
-                  />
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            title="Project video"
+                          />
+                        );
+                      }
+                      // If not YouTube, try as direct video URL
+                      return (
+                        <video 
+                          src={selectedProject.videoUrl} 
+                          controls 
+                          className="w-full h-64 rounded"
+                        >
+                          Your browser does not support the video tag.
+                        </video>
+                      );
+                    })()}
+                  </div>
                 )}
               </div>
             </>

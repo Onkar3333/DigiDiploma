@@ -23,8 +23,14 @@ import {
   Eye,
   ThumbsUp,
   MessageCircle,
-  MoreHorizontal
+  MoreHorizontal,
+  IndianRupee,
+  Lock
 } from 'lucide-react';
+import { initializePayment, RazorpayResponse } from '@/lib/razorpay';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { authService } from '@/lib/auth';
 
 interface Material {
   _id: string;
@@ -38,6 +44,9 @@ interface Material {
   subjectName: string;
   // Academic resource category from admin
   resourceType?: string;
+  accessType?: 'free' | 'drive_protected' | 'paid';
+  price?: number;
+  googleDriveUrl?: string;
   downloads: number;
   rating: number;
   tags: string[];
@@ -70,10 +79,14 @@ const SubjectMaterials: React.FC<SubjectMaterialsProps> = ({
   subjectName,
   subjectCode
 }) => {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('all');
+  const [purchasedMaterials, setPurchasedMaterials] = useState<Set<string>>(new Set());
+  const [processingPayment, setProcessingPayment] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMaterials();
@@ -96,8 +109,45 @@ const SubjectMaterials: React.FC<SubjectMaterialsProps> = ({
       }
       
       const data = await response.json();
-      // Ensure we have an array
-      setMaterials(Array.isArray(data) ? data : []);
+      // Ensure we have an array and preserve accessType and price
+      const materialsList = Array.isArray(data) ? data : [];
+      setMaterials(materialsList.map((m: Material) => ({
+        ...m,
+        accessType: m.accessType || 'free',
+        price: m.price || 0
+      })));
+      
+      // Check purchase status for paid materials
+      const paidMaterials = materialsList.filter((m: Material) => m.accessType === 'paid');
+      if (paidMaterials.length > 0) {
+        const authService = (await import('@/lib/auth')).authService;
+        const purchaseChecks = await Promise.all(
+          paidMaterials.map(async (material: Material) => {
+            try {
+              const checkResponse = await fetch(`/api/payments/check-purchase/${material._id}`, {
+                headers: authService.getAuthHeaders()
+              });
+              if (checkResponse.ok) {
+                const checkData = await checkResponse.json();
+                return { materialId: material._id, hasPurchased: checkData.hasPurchased };
+              }
+            } catch (error) {
+              console.error('Error checking purchase status:', error);
+            }
+            return { materialId: material._id, hasPurchased: false };
+          })
+        );
+        
+        const purchased = new Set(
+          purchaseChecks
+            .filter(check => check.hasPurchased)
+            .map(check => check.materialId)
+        );
+        
+        if (purchased.size > 0) {
+          setPurchasedMaterials(prev => new Set([...prev, ...purchased]));
+        }
+      }
     } catch (err) {
       console.error('Error fetching materials:', err);
       setError('Failed to load materials. Please try again.');
@@ -135,21 +185,230 @@ const SubjectMaterials: React.FC<SubjectMaterialsProps> = ({
     ? materials 
     : materials.filter(material => material.type === activeTab);
 
-  const handleDownload = async (materialId: string, url: string) => {
+  // Handle payment for paid materials
+  const handlePayment = async (material: Material) => {
+    if (processingPayment === material._id) return;
+    
+    setProcessingPayment(material._id);
     try {
+      const authService = (await import('@/lib/auth')).authService;
+      
+      // Create payment order
+      const orderResponse = await fetch('/api/payments/create-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders()
+        },
+        body: JSON.stringify({ materialId: material._id })
+      });
+
+      if (!orderResponse.ok) {
+        const errorData = await orderResponse.json();
+        if (errorData.alreadyPurchased) {
+          setPurchasedMaterials(prev => new Set([...prev, material._id]));
+          toast({ 
+            title: "Already Purchased", 
+            description: "You have already purchased this material." 
+          });
+          return;
+        }
+        throw new Error(errorData.error || 'Failed to create payment order');
+      }
+
+      const orderData = await orderResponse.json();
+
+      // Initialize Razorpay payment
+      const paymentResponse: RazorpayResponse = await initializePayment(
+        orderData.orderId,
+        orderData.amount,
+        orderData.currency,
+        orderData.keyId,
+        material.title,
+        user?.name,
+        user?.email
+      );
+
+      // Verify payment
+      const verifyResponse = await fetch('/api/payments/verify-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders()
+        },
+        body: JSON.stringify({
+          razorpayOrderId: paymentResponse.razorpay_order_id,
+          razorpayPaymentId: paymentResponse.razorpay_payment_id,
+          razorpaySignature: paymentResponse.razorpay_signature
+        })
+      });
+
+      if (!verifyResponse.ok) {
+        const errorData = await verifyResponse.json();
+        throw new Error(errorData.error || 'Payment verification failed');
+      }
+
+      // Payment successful - generate secure download link
+      const linkResponse = await fetch('/api/payments/generate-download-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders()
+        },
+        body: JSON.stringify({ materialId: material._id })
+      });
+
+      if (linkResponse.ok) {
+        const linkData = await linkResponse.json();
+        setPurchasedMaterials(prev => new Set([...prev, material._id]));
+        toast({ 
+          title: "Payment Successful!", 
+          description: "You can now download this material." 
+        });
+
+        // Automatically download using secure link
+        setTimeout(() => {
+          window.open(linkData.downloadUrl, '_blank');
+        }, 1000);
+      } else {
+        // Fallback to regular download if link generation fails
+        setPurchasedMaterials(prev => new Set([...prev, material._id]));
+        toast({ 
+          title: "Payment Successful!", 
+          description: "You can now download this material." 
+        });
+        setTimeout(() => {
+          handleDownload(material._id, material.url);
+        }, 1000);
+      }
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      if (error.message !== 'Payment cancelled by user') {
+        toast({ 
+          title: "Payment Failed", 
+          description: error.message || "Failed to process payment. Please try again.",
+          variant: "destructive"
+        });
+      }
+    } finally {
+      setProcessingPayment(null);
+    }
+  };
+
+  const handleDownload = async (materialId: string, url: string) => {
+    const material = materials.find(m => m._id === materialId);
+    
+    // Check access type and enforce restrictions
+    if (material?.accessType === 'paid') {
+      // Check if user has purchased it
+      if (!purchasedMaterials.has(materialId)) {
+        const authService = (await import('@/lib/auth')).authService;
+        try {
+          const checkResponse = await fetch(`/api/payments/check-purchase/${materialId}`, {
+            headers: authService.getAuthHeaders()
+          });
+          if (checkResponse.ok) {
+            const checkData = await checkResponse.json();
+            if (!checkData.hasPurchased) {
+              toast({ 
+                title: "Payment Required", 
+                description: `Please purchase this material (₹${material.price || 0}) to download it.`,
+                variant: "destructive"
+              });
+              return;
+            }
+            setPurchasedMaterials(prev => new Set([...prev, materialId]));
+          }
+        } catch (error) {
+          console.error('Error checking purchase:', error);
+        }
+      }
+
+      // Generate secure download link for paid materials
+      try {
+        const linkResponse = await fetch('/api/payments/generate-download-link', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeaders()
+          },
+          body: JSON.stringify({ materialId: materialId })
+        });
+
+        if (linkResponse.ok) {
+          const linkData = await linkResponse.json();
+          // Open secure download link
+          window.open(linkData.downloadUrl, '_blank');
+          toast({ 
+            title: "Download Started", 
+            description: "Your secure download link is opening." 
+          });
+          return;
+        } else {
+          // Fallback to regular download
+          console.warn('Failed to generate secure download link, using regular download');
+        }
+      } catch (error) {
+        console.error('Error generating secure download link:', error);
+        // Fallback to regular download
+      }
+    } else if (material?.accessType === 'drive_protected') {
+      // Drive protected materials require Google Drive URL
+      if (!material.googleDriveUrl) {
+        toast({ 
+          title: "Access Restricted", 
+          description: "This material requires Google Drive access.",
+          variant: "destructive"
+        });
+        return;
+      }
+      // For drive protected, use the googleDriveUrl
+      if (material.googleDriveUrl) {
+        window.open(material.googleDriveUrl, '_blank');
+        toast({ title: "Opening Google Drive", description: "Material is opening in Google Drive." });
+        return;
+      }
+    }
+    // Free materials can proceed with normal download
+    
+    try {
+      const authService = (await import('@/lib/auth')).authService;
       const response = await fetch(`/api/materials/${materialId}/download`, {
         method: 'POST',
         headers: {
-          ...((await import('@/lib/auth')).authService.getAuthHeaders()),
+          ...authService.getAuthHeaders(),
         }
       });
+      
+      if (response.status === 403) {
+        const errorData = await response.json();
+        if (errorData.requiresPayment) {
+          toast({ 
+            title: "Payment Required", 
+            description: "Please purchase this material to download it.",
+            variant: "destructive"
+          });
+          return;
+        }
+        if (errorData.requiresDriveAccess) {
+          toast({ 
+            title: "Access Restricted", 
+            description: "This material requires Google Drive access.",
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+      
       if (response.ok) {
         const data = await response.json().catch(() => null);
         if (data?.material) {
           setMaterials(prev => prev.map(m => m._id === materialId ? { ...m, ...data.material } : m));
         }
       }
-    } catch {}
+    } catch (error) {
+      console.error('Download error:', error);
+    }
     window.open(url, '_blank');
   };
 
@@ -287,10 +546,37 @@ const SubjectMaterials: React.FC<SubjectMaterialsProps> = ({
                                   Watch
                                 </Button>
                               )}
-                              <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => handleDownload(material._id, material.url)}>
-                                <Download className="w-4 h-4 mr-1" />
-                                Download
-                              </Button>
+                              {material.accessType === 'paid' && !purchasedMaterials.has(material._id) ? (
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700"
+                                  onClick={() => handlePayment(material)}
+                                  disabled={processingPayment === material._id}
+                                >
+                                  {processingPayment === material._id ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1"></div>
+                                      Processing...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <IndianRupee className="w-4 h-4 mr-1" />
+                                      Buy ₹{material.price || 0}
+                                    </>
+                                  )}
+                                </Button>
+                              ) : (
+                                <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => handleDownload(material._id, material.url)}>
+                                  <Download className="w-4 h-4 mr-1" />
+                                  Download
+                                </Button>
+                              )}
+                              {material.accessType === 'paid' && (
+                                <Badge variant="outline" className="ml-2 border-yellow-500 text-yellow-700">
+                                  <Lock className="w-3 h-3 mr-1" />
+                                  Paid
+                                </Badge>
+                              )}
                             </div>
                           </div>
                         </div>

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { 
   BookOpen, 
   FileText, 
@@ -35,6 +35,8 @@ import MaterialViewer from '@/components/MaterialViewer';
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { ALL_BRANCHES } from '@/constants/branches';
+import { initializePayment, RazorpayResponse } from '@/lib/razorpay';
+import { IndianRupee, Lock, QrCode, CreditCard } from 'lucide-react';
 
 const AVAILABLE_BRANCHES = [...ALL_BRANCHES];
 
@@ -61,6 +63,9 @@ interface Material {
   semester?: number;
   // Academic resource category from admin (syllabus, model_answer_papers, etc.)
   resourceType?: string;
+  accessType?: 'free' | 'drive_protected' | 'paid';
+  price?: number;
+  googleDriveUrl?: string;
   downloads?: number;
   rating?: number;
   ratingCount?: number;
@@ -82,6 +87,18 @@ const Materials = () => {
   const [viewingMaterial, setViewingMaterial] = useState<Material | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [purchasedMaterials, setPurchasedMaterials] = useState<Set<string>>(new Set());
+  const [processingPayment, setProcessingPayment] = useState<string | null>(null);
+  const [showQRPayment, setShowQRPayment] = useState(false);
+  const [qrPaymentData, setQrPaymentData] = useState<{
+    qrCode: string;
+    shortUrl: string;
+    materialId: string;
+    materialTitle: string;
+    amount: number;
+  } | null>(null);
+  const [checkingPaymentStatus, setCheckingPaymentStatus] = useState(false);
+  const [paymentConfigured, setPaymentConfigured] = useState<boolean | null>(null); // null = not checked yet
 
   const RESOURCE_TYPES = [
     { value: 'syllabus', label: 'Syllabus', emoji: '📜' },
@@ -328,12 +345,27 @@ const Materials = () => {
             const normalizedList = materialsList.map((m: Material) => {
               // Preserve actual resourceType if it exists, only default to 'notes' if it's missing
               const resourceType = m.resourceType && m.resourceType.trim() !== '' ? m.resourceType : 'notes';
+              
+              // Validate and sanitize URL - prevent invalid data URLs
+              let validUrl = m.url || '';
+              if (validUrl === 'data:;base64,=' || validUrl.startsWith('data:;base64,=') || validUrl.trim() === '') {
+                if (m.accessType === 'drive_protected' && m.googleDriveUrl) {
+                  validUrl = m.googleDriveUrl;
+                } else {
+                  validUrl = '';
+                }
+              }
+              
               return {
                 ...m,
+                url: validUrl,
                 downloads: m.downloads ?? 0,
                 rating: m.rating ?? 0,
                 ratingCount: m.ratingCount ?? 0,
-                resourceType: resourceType
+                resourceType: resourceType,
+                accessType: m.accessType || 'free',
+                price: m.price || 0,
+                googleDriveUrl: m.googleDriveUrl || undefined
               };
             });
             const filteredMaterials = normalizedList.filter((m: Material) => {
@@ -370,12 +402,31 @@ const Materials = () => {
           // Preserve actual resourceType if it exists, only default to 'notes' if it's missing
           const resourceType = m.resourceType && m.resourceType.trim() !== '' ? m.resourceType : 'notes';
           console.log(`📋 Material "${m.title}" - resourceType: "${m.resourceType}" → normalized to: "${resourceType}"`);
+          console.log(`💰 Material "${m.title}" - accessType: "${m.accessType}", price: ${m.price}`);
+          
+          // Validate and sanitize URL - prevent invalid data URLs
+          let validUrl = m.url || '';
+          if (validUrl === 'data:;base64,=' || validUrl.startsWith('data:;base64,=') || validUrl.trim() === '') {
+            // For drive_protected materials, use googleDriveUrl if available
+            if (m.accessType === 'drive_protected' && m.googleDriveUrl) {
+              validUrl = m.googleDriveUrl;
+            } else {
+              // Set to empty string for invalid URLs - will be handled by components
+              validUrl = '';
+            }
+          }
+          
           return {
             ...m,
+            url: validUrl,
             downloads: m.downloads ?? 0,
             rating: m.rating ?? 0,
             ratingCount: m.ratingCount ?? 0,
-            resourceType: resourceType
+            resourceType: resourceType,
+            // Explicitly preserve accessType and price
+            accessType: m.accessType || 'free',
+            price: m.price || 0,
+            googleDriveUrl: m.googleDriveUrl || undefined
           };
         });
         const filteredMaterials = normalizedMaterials.filter((m: Material) => {
@@ -417,6 +468,84 @@ const Materials = () => {
     }
   };
 
+  // Check if payment service is configured (only once when paid materials are present)
+  useEffect(() => {
+    if (paymentConfigured !== null) return; // Already checked
+    
+    const hasPaidMaterials = materials.some(m => m.accessType === 'paid');
+    if (!hasPaidMaterials) {
+      // No paid materials, assume payment is not needed (set to true to avoid unnecessary checks)
+      setPaymentConfigured(true);
+      return;
+    }
+
+    // Check payment configuration by calling a lightweight endpoint
+    // We'll detect 503 status which means payment is not configured
+    const checkPaymentConfig = async () => {
+      try {
+        // Use a simple check endpoint or just try to create an order with invalid material
+        // The 503 will tell us if Razorpay is configured
+        const testResponse = await fetch('/api/payments/create-order', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeaders()
+          },
+          body: JSON.stringify({ materialId: 'config-check-only' })
+        });
+        
+        // 503 means payment not configured
+        // 400/404 might mean it's configured but material doesn't exist (which is fine)
+        if (testResponse.status === 503) {
+          setPaymentConfigured(false);
+          console.warn('⚠️ Payment service not configured (503 response)');
+        } else {
+          // Any other status (400, 404, etc.) means the service is configured
+          // but the test material doesn't exist, which is expected
+          setPaymentConfigured(true);
+          console.log('✅ Payment service is configured');
+        }
+      } catch (error) {
+        // Network error or other issue - assume not configured to be safe
+        console.warn('⚠️ Could not check payment configuration:', error);
+        setPaymentConfigured(false);
+      }
+    };
+
+    // Small delay to avoid checking immediately on every render
+    const timeoutId = setTimeout(checkPaymentConfig, 500);
+    return () => clearTimeout(timeoutId);
+  }, [materials, paymentConfigured]);
+
+  // Check purchase status for paid materials when materials are loaded
+  useEffect(() => {
+    const checkPurchases = async () => {
+      const paidMaterials = materials.filter(m => m.accessType === 'paid');
+      if (paidMaterials.length === 0) return;
+
+      const purchaseChecks = await Promise.all(
+        paidMaterials.map(async (material) => {
+          const hasPurchased = await checkPurchaseStatus(material._id);
+          return { materialId: material._id, hasPurchased };
+        })
+      );
+
+      const purchased = new Set(
+        purchaseChecks
+          .filter(check => check.hasPurchased)
+          .map(check => check.materialId)
+      );
+
+      if (purchased.size > 0) {
+        setPurchasedMaterials(prev => new Set([...prev, ...purchased]));
+      }
+    };
+
+    if (materials.length > 0) {
+      checkPurchases();
+    }
+  }, [materials]);
+
   const getSemesters = () => {
     const semesters = new Set<number>();
     subjects.forEach(subject => {
@@ -444,12 +573,361 @@ const Materials = () => {
     setViewingMaterial(prev => (prev && prev._id === materialId) ? { ...prev, ...stats } : prev);
   };
 
+  // Check if user has purchased a material
+  const checkPurchaseStatus = async (materialId: string) => {
+    try {
+      const response = await fetch(`/api/payments/check-purchase/${materialId}`, {
+        headers: authService.getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.hasPurchased;
+      }
+    } catch (error) {
+      console.error('Error checking purchase status:', error);
+    }
+    return false;
+  };
+
+  // Handle UPI QR code payment
+  const handleQRPayment = async (material: Material) => {
+    if (processingPayment === material._id) return;
+    
+    setProcessingPayment(material._id);
+    try {
+      // Create payment link with QR code
+      const linkResponse = await fetch('/api/payments/create-payment-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders()
+        },
+        body: JSON.stringify({ materialId: material._id })
+      });
+
+      if (!linkResponse.ok) {
+        const errorData = await linkResponse.json().catch(() => ({}));
+        if (errorData.alreadyPurchased) {
+          setPurchasedMaterials(prev => new Set([...prev, material._id]));
+          toast({ 
+            title: "Already Purchased", 
+            description: "You have already purchased this material." 
+          });
+          return;
+        }
+        
+        // Check if it's a payment configuration error
+        if (linkResponse.status === 503 || errorData.code === 'PAYMENT_NOT_CONFIGURED') {
+          throw new Error('Payment service is not configured. Please contact the administrator to enable payments.');
+        }
+        
+        throw new Error(errorData.error || 'Failed to create payment link');
+      }
+
+      const linkData = await linkResponse.json();
+      
+      setQrPaymentData({
+        qrCode: linkData.qrCode,
+        shortUrl: linkData.shortUrl,
+        materialId: material._id,
+        materialTitle: material.title,
+        amount: linkData.amount / 100 // Convert from paise to rupees
+      });
+      setShowQRPayment(true);
+      setProcessingPayment(null);
+
+      // Start polling for payment status
+      startPaymentStatusPolling(material._id, linkData.paymentLinkId);
+    } catch (error: any) {
+      console.error('QR Payment error:', error);
+      let errorMessage = error.message || "Failed to create payment link. Please try again.";
+      
+      // Check if it's a payment configuration error
+      if (error.message?.includes('not configured') || error.message?.includes('503') || error.message?.includes('Service Unavailable')) {
+        errorMessage = "Payment service is not configured. Please contact the administrator to enable payments.";
+      }
+      
+      toast({ 
+        title: "Payment Failed", 
+        description: errorMessage,
+        variant: "destructive"
+      });
+      setProcessingPayment(null);
+    }
+  };
+
+  // Poll payment status for QR code payments
+  const startPaymentStatusPolling = (materialId: string, paymentLinkId: string) => {
+    setCheckingPaymentStatus(true);
+    const pollInterval = setInterval(async () => {
+      try {
+        const checkResponse = await fetch(`/api/payments/check-purchase/${materialId}`, {
+          headers: authService.getAuthHeaders()
+        });
+
+        if (checkResponse.ok) {
+          const checkData = await checkResponse.json();
+          if (checkData.hasPurchased) {
+            clearInterval(pollInterval);
+            setCheckingPaymentStatus(false);
+            setShowQRPayment(false);
+            setPurchasedMaterials(prev => new Set([...prev, materialId]));
+            
+            toast({ 
+              title: "Payment Successful!", 
+              description: "Your payment has been verified. Generating download link..." 
+            });
+
+            // Generate secure download link
+            const linkResponse = await fetch('/api/payments/generate-download-link', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...authService.getAuthHeaders()
+              },
+              body: JSON.stringify({ materialId: materialId })
+            });
+
+            if (linkResponse.ok) {
+              const linkData = await linkResponse.json();
+              setTimeout(() => {
+                window.open(linkData.downloadUrl, '_blank');
+              }, 1000);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error checking payment status:', error);
+      }
+    }, 3000); // Poll every 3 seconds
+
+    // Stop polling after 5 minutes
+    setTimeout(() => {
+      clearInterval(pollInterval);
+      setCheckingPaymentStatus(false);
+    }, 5 * 60 * 1000);
+  };
+
+  // Handle payment for paid materials
+  const handlePayment = async (material: Material) => {
+    if (processingPayment === material._id) return;
+    
+    setProcessingPayment(material._id);
+    try {
+      // Create payment order
+      const orderResponse = await fetch('/api/payments/create-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders()
+        },
+        body: JSON.stringify({ materialId: material._id })
+      });
+
+      if (!orderResponse.ok) {
+        const errorData = await orderResponse.json().catch(() => ({}));
+        if (errorData.alreadyPurchased) {
+          setPurchasedMaterials(prev => new Set([...prev, material._id]));
+          toast({ 
+            title: "Already Purchased", 
+            description: "You have already purchased this material." 
+          });
+          return;
+        }
+        
+        // Check if it's a payment configuration error
+        if (orderResponse.status === 503 || errorData.code === 'PAYMENT_NOT_CONFIGURED') {
+          throw new Error('Payment service is not configured. Please contact the administrator to enable payments.');
+        }
+        
+        throw new Error(errorData.error || 'Failed to create payment order');
+      }
+
+      const orderData = await orderResponse.json();
+
+      // Validate order data
+      if (!orderData.orderId || !orderData.amount || !orderData.keyId) {
+        console.error('Invalid order data received:', orderData);
+        throw new Error('Invalid order data received from server');
+      }
+
+      // Ensure orderId is a string and amount is a number
+      const orderId = String(orderData.orderId);
+      const amount = Number(orderData.amount);
+      const currency = orderData.currency || 'INR';
+      const keyId = String(orderData.keyId);
+
+      if (!orderId || !amount || !keyId) {
+        console.error('Missing required order fields:', { orderId, amount, keyId });
+        throw new Error('Missing required payment information');
+      }
+
+      // Initialize Razorpay payment
+      const paymentResponse: RazorpayResponse = await initializePayment(
+        orderId,
+        amount,
+        currency,
+        keyId,
+        material.title,
+        user?.name,
+        user?.email
+      );
+
+      // Verify payment
+      const verifyResponse = await fetch('/api/payments/verify-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders()
+        },
+        body: JSON.stringify({
+          razorpayOrderId: paymentResponse.razorpay_order_id,
+          razorpayPaymentId: paymentResponse.razorpay_payment_id,
+          razorpaySignature: paymentResponse.razorpay_signature
+        })
+      });
+
+      if (!verifyResponse.ok) {
+        const errorData = await verifyResponse.json();
+        throw new Error(errorData.error || 'Payment verification failed');
+      }
+
+      // Payment successful - generate secure download link
+      const linkResponse = await fetch('/api/payments/generate-download-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders()
+        },
+        body: JSON.stringify({ materialId: material._id })
+      });
+
+      if (linkResponse.ok) {
+        const linkData = await linkResponse.json();
+        setPurchasedMaterials(prev => new Set([...prev, material._id]));
+        toast({ 
+          title: "Payment Successful!", 
+          description: "You can now download this material." 
+        });
+
+        // Automatically download using secure link
+        setTimeout(() => {
+          window.open(linkData.downloadUrl, '_blank');
+        }, 1000);
+      } else {
+        // Fallback to regular download if link generation fails
+        setPurchasedMaterials(prev => new Set([...prev, material._id]));
+        toast({ 
+          title: "Payment Successful!", 
+          description: "You can now download this material." 
+        });
+        setTimeout(() => {
+          handleDownload(material);
+        }, 1000);
+      }
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      if (error.message !== 'Payment cancelled by user') {
+        let errorMessage = error.message || "Failed to process payment. Please try again.";
+        
+        // Check if it's a payment configuration error
+        if (error.message?.includes('not configured') || error.message?.includes('503') || error.message?.includes('Service Unavailable')) {
+          errorMessage = "Payment service is not configured. Please contact the administrator to enable payments.";
+        }
+        
+        toast({ 
+          title: "Payment Failed", 
+          description: errorMessage,
+          variant: "destructive"
+        });
+      }
+    } finally {
+      setProcessingPayment(null);
+    }
+  };
+
   const handleDownload = async (material: Material) => {
+    // Check access type and enforce restrictions
+    if (material.accessType === 'paid') {
+      // Check if user has purchased it
+      if (!purchasedMaterials.has(material._id)) {
+        const hasPurchased = await checkPurchaseStatus(material._id);
+        if (!hasPurchased) {
+          toast({ 
+            title: "Payment Required", 
+            description: `Please purchase this material (₹${material.price || 0}) to download it.`,
+            variant: "destructive"
+          });
+          return;
+        }
+        setPurchasedMaterials(prev => new Set([...prev, material._id]));
+      }
+
+      // Generate secure download link for paid materials
+      try {
+        const linkResponse = await fetch('/api/payments/generate-download-link', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeaders()
+          },
+          body: JSON.stringify({ materialId: material._id })
+        });
+
+        if (linkResponse.ok) {
+          const linkData = await linkResponse.json();
+          // Open secure download link
+          window.open(linkData.downloadUrl, '_blank');
+          toast({ 
+            title: "Download Started", 
+            description: "Your secure download link is opening." 
+          });
+          return;
+        } else {
+          // Fallback to regular download
+          console.warn('Failed to generate secure download link, using regular download');
+        }
+      } catch (error) {
+        console.error('Error generating secure download link:', error);
+        // Fallback to regular download
+      }
+    } else if (material.accessType === 'drive_protected') {
+      // Drive protected materials require Google Drive URL
+      if (!material.googleDriveUrl) {
+        toast({ 
+          title: "Access Restricted", 
+          description: "This material requires Google Drive access.",
+          variant: "destructive"
+        });
+        return;
+      }
+      // For drive protected, use the googleDriveUrl
+      if (material.googleDriveUrl) {
+        window.open(material.googleDriveUrl, '_blank');
+        toast({ title: "Opening Google Drive", description: "Material is opening in Google Drive." });
+        return;
+      }
+    }
+    // Free materials can proceed with normal download
+
     try {
       const response = await fetch(`/api/materials/${material._id}/download`, {
         method: 'POST',
         headers: authService.getAuthHeaders()
       });
+      
+      if (response.status === 403) {
+        const errorData = await response.json();
+        if (errorData.requiresPayment) {
+          toast({ 
+            title: "Payment Required", 
+            description: "Please purchase this material to download it.",
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+
       if (response.ok) {
         const data = await response.json().catch(() => null);
         if (data?.material) {
@@ -459,19 +937,40 @@ const Materials = () => {
             ratingCount: data.material.ratingCount
           });
         }
+        
+        // Check if response contains driveUrl for drive protected materials
+        if (data?.driveUrl) {
+          window.open(data.driveUrl, '_blank');
+          toast({ title: "Opening Google Drive", description: "Material is opening in Google Drive." });
+          return;
+        }
+        
+        // Check if response is a redirect (for free materials)
+        // The backend will redirect, so we don't need to open URL manually
+        // Just show success message
+        toast({ title: "Download started", description: "Material is being downloaded." });
+        return;
       }
-      // Ensure URL is absolute to avoid React Router interception
-      const absoluteUrl = material.url.startsWith('http') 
-        ? material.url 
-        : `${window.location.origin}${material.url.startsWith('/') ? material.url : '/' + material.url}`;
-      window.open(absoluteUrl, '_blank');
-      toast({ title: "Download started", description: "Material is being downloaded." });
+      
+      // If response is not ok and not 403, try to handle it
+      if (response.status !== 403) {
+        const errorData = await response.json().catch(() => ({}));
+        if (errorData.requiresSecureDownload) {
+          toast({ 
+            title: "Secure Download Required", 
+            description: "Please use the secure download link for this material.",
+            variant: "destructive"
+          });
+          return;
+        }
+      }
     } catch (error) {
-      // Ensure URL is absolute to avoid React Router interception
-      const absoluteUrl = material.url.startsWith('http') 
-        ? material.url 
-        : `${window.location.origin}${material.url.startsWith('/') ? material.url : '/' + material.url}`;
-      window.open(absoluteUrl, '_blank');
+      console.error('Download error:', error);
+      toast({ 
+        title: "Download Failed", 
+        description: "Failed to download material. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -985,14 +1484,69 @@ const Materials = () => {
                               View
                     </Button>
                           )}
-                          <Button
-                            size="sm"
-                            className="flex-1"
-                            onClick={() => handleDownload(material)}
-                          >
-                        <Download className="w-4 h-4 mr-1" />
-                        Download
-                      </Button>
+                          {material.accessType === 'paid' && !purchasedMaterials.has(material._id) ? (
+                            <div className="flex gap-2 flex-1 flex-col">
+                              {paymentConfigured === false && (
+                                <div className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                                  ⚠️ Payment service not configured
+                                </div>
+                              )}
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                                  onClick={() => handlePayment(material)}
+                                  disabled={processingPayment === material._id || paymentConfigured === false}
+                                  title={paymentConfigured === false ? "Payment service is not configured. Please contact administrator." : undefined}
+                                >
+                                  {processingPayment === material._id ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1"></div>
+                                      Processing...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CreditCard className="w-4 h-4 mr-1" />
+                                      Pay ₹{material.price || 0}
+                                    </>
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="bg-blue-600 text-white hover:bg-blue-700 border-blue-600 disabled:opacity-50"
+                                  onClick={() => handleQRPayment(material)}
+                                  disabled={processingPayment === material._id || paymentConfigured === false}
+                                  title={paymentConfigured === false ? "Payment service is not configured. Please contact administrator." : "Pay via UPI QR Code"}
+                                >
+                                  {processingPayment === material._id ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1"></div>
+                                    </>
+                                  ) : (
+                                    <QrCode className="w-4 h-4" />
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => handleDownload(material)}
+                            >
+                              <Download className="w-4 h-4 mr-1" />
+                              Download
+                            </Button>
+                          )}
+                          {material.accessType === 'paid' && (
+                            <Badge variant="outline" className="ml-2 border-yellow-500 text-yellow-700">
+                              <Lock className="w-3 h-3 mr-1" />
+                              Paid
+                            </Badge>
+                          )}
                   </div>
                 </CardContent>
               </Card>
@@ -1003,10 +1557,83 @@ const Materials = () => {
           </div>
         )}
 
+        {/* UPI QR Code Payment Dialog */}
+        <Dialog open={showQRPayment} onOpenChange={(open) => {
+          setShowQRPayment(open);
+          if (!open) {
+            setQrPaymentData(null);
+            setCheckingPaymentStatus(false);
+          }
+        }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Pay via UPI QR Code</DialogTitle>
+              <DialogDescription>
+                Scan the QR code with any UPI app to complete your payment
+              </DialogDescription>
+            </DialogHeader>
+            {qrPaymentData && (
+              <div className="space-y-4">
+                <div className="text-center">
+                  <p className="text-sm text-slate-600 mb-2">
+                    Scan this QR code with any UPI app (Google Pay, PhonePe, Paytm, etc.)
+                  </p>
+                  <div className="bg-white p-4 rounded-lg border-2 border-slate-200 inline-block">
+                    <img 
+                      src={qrPaymentData.qrCode} 
+                      alt="UPI QR Code" 
+                      className="w-64 h-64 mx-auto"
+                    />
+                  </div>
+                  <p className="text-lg font-semibold mt-4">
+                    Amount: ₹{qrPaymentData.amount}
+                  </p>
+                  <p className="text-sm text-slate-500 mt-2">
+                    {qrPaymentData.materialTitle}
+                  </p>
+                </div>
+                
+                <div className="border-t pt-4">
+                  <p className="text-xs text-slate-500 mb-2 text-center">
+                    Or click the link below to pay:
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => window.open(qrPaymentData.shortUrl, '_blank')}
+                  >
+                    Open Payment Link
+                  </Button>
+                </div>
+
+                {checkingPaymentStatus && (
+                  <div className="flex items-center justify-center gap-2 text-blue-600">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <p className="text-sm">Waiting for payment confirmation...</p>
+                  </div>
+                )}
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-xs text-blue-800">
+                    💡 <strong>Note:</strong> After payment, this dialog will automatically close and your download will start. 
+                    Please keep this window open.
+                  </p>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
         {/* Material Viewer Modal */}
         {viewingMaterial && (
           <Dialog open={!!viewingMaterial} onOpenChange={(open) => !open && setViewingMaterial(null)}>
             <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{viewingMaterial.title || 'Material Viewer'}</DialogTitle>
+                <DialogDescription>
+                  View and interact with the material content
+                </DialogDescription>
+              </DialogHeader>
               <MaterialViewer
                 material={{
                   id: viewingMaterial._id,

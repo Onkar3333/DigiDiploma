@@ -33,7 +33,13 @@ export const useWebSocket = ({
     try {
       // Use wss:// for production, ws:// for development
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.hostname}:5000`;
+      // In production, WebSocket should connect to backend domain, not frontend
+      // For development, use localhost:5000
+      const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const backendHost = isDevelopment 
+        ? `${window.location.hostname}:5000`
+        : import.meta.env.VITE_WS_URL || window.location.hostname.replace('www.', 'api.');
+      const wsUrl = `${protocol}//${backendHost}`;
       
       wsRef.current = new WebSocket(wsUrl);
       // expose globally for admin dashboard to listen

@@ -18,7 +18,8 @@ import {
   ArrowLeft,
   Camera,
   Shield,
-  Loader2
+  Loader2,
+  LogOut
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '@/lib/auth';
@@ -325,9 +326,11 @@ const Profile = () => {
               variant="outline"
               size="sm"
               onClick={logout}
-              className="text-primary-foreground border-primary-foreground hover:bg-primary-foreground/20"
+              className="bg-white/90 text-primary border-primary hover:bg-white hover:text-primary shadow-md"
             >
-              Logout
+              <LogOut className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Logout</span>
+              <span className="sm:hidden">Out</span>
             </Button>
           </div>
         </div>

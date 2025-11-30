@@ -47,11 +47,35 @@ class AuthService {
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      // Check if response has content before parsing JSON
+      const contentType = response.headers.get('content-type');
+      let data;
+      
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const text = await response.text();
+          data = text ? JSON.parse(text) : {};
+        } catch (parseError) {
+          console.error('Failed to parse JSON response:', parseError);
+          return { 
+            error: response.status === 500 
+              ? 'Server error. Please try again later.' 
+              : 'Login failed. Please check your credentials and try again.' 
+          };
+        }
+      } else {
+        // Non-JSON response
+        const text = await response.text();
+        return { 
+          error: text || (response.status === 500 
+            ? 'Server error. Please try again later.' 
+            : 'Login failed. Please check your credentials and try again.') 
+        };
+      }
 
       if (!response.ok) {
         // Extract error message from backend response
-        const errorMessage = data.error || data.message || 'Login failed. Please check your credentials and try again.';
+        const errorMessage = data?.error || data?.message || data?.details || 'Login failed. Please check your credentials and try again.';
         return { error: errorMessage };
       }
       

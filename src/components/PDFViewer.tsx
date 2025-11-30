@@ -40,10 +40,81 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
   const progressUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  // Convert R2 URLs to proxy URLs
+  const getProxyUrl = (originalUrl: string): string => {
+    if (!originalUrl || originalUrl.trim() === '' || originalUrl === 'data:;base64,=' || originalUrl.startsWith('data:;base64,=')) {
+      return '';
+    }
+    
+    // If already using proxy, return as is
+    if (originalUrl.includes('/api/materials/proxy/')) {
+      return originalUrl;
+    }
+    
+    // Check if it's an R2 URL
+    if (originalUrl.includes('r2.cloudflarestorage.com')) {
+      try {
+        const urlObj = new URL(originalUrl);
+        const pathParts = urlObj.pathname.split('/').filter(Boolean);
+        
+        // R2 URLs format: https://{account_id}.r2.cloudflarestorage.com/{bucket}/{key}
+        // Example: https://xxx.r2.cloudflarestorage.com/digidiploma/materials/file.pdf
+        // We need to extract just the key part (materials/file.pdf)
+        // The bucket name is typically the first part of the path
+        
+        let key = '';
+        if (pathParts.length > 1) {
+          // Skip the first part (bucket name) and use the rest as key
+          // Format: /bucket-name/materials/filename.pdf -> key: materials/filename.pdf
+          key = pathParts.slice(1).join('/');
+        } else if (pathParts.length === 1) {
+          // If only one part, it might be the key directly (bucket in subdomain)
+          key = pathParts[0];
+        }
+        
+        if (key) {
+          const proxyUrl = `${window.location.origin}/api/materials/proxy/r2/${encodeURIComponent(key)}`;
+          console.log('PDFViewer: Converting R2 URL to proxy:', originalUrl, '->', proxyUrl);
+          return proxyUrl;
+        }
+      } catch (e) {
+        console.warn('PDFViewer: Failed to parse R2 URL:', e, originalUrl);
+      }
+    }
+    
+    // If relative URL, make it absolute
+    if (originalUrl.startsWith('/')) {
+      return `${window.location.origin}${originalUrl}`;
+    }
+    
+    // If not starting with http, add origin
+    if (!originalUrl.startsWith('http://') && !originalUrl.startsWith('https://')) {
+      return `${window.location.origin}/${originalUrl}`;
+    }
+    
+    return originalUrl;
+  };
+
+  const proxyUrl = getProxyUrl(url);
+
   useEffect(() => {
+    // Validate URL before loading
+    if (!url || url.trim() === '' || url === 'data:;base64,=' || url.startsWith('data:;base64,=')) {
+      setError('Invalid PDF URL');
+      setLoading(false);
+      return;
+    }
+    
+    // Validate proxyUrl is valid
+    if (!proxyUrl || proxyUrl.trim() === '' || proxyUrl === 'data:;base64,=' || proxyUrl.startsWith('data:;base64,=')) {
+      setError('Invalid PDF URL');
+      setLoading(false);
+      return;
+    }
+    
     // Start tracking time spent
     startTimeRef.current = Date.now();
-    setLoading(false);
+    setLoading(true);
 
     // Set up progress tracking interval
     progressUpdateIntervalRef.current = setInterval(() => {
@@ -76,9 +147,12 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
     setError(null);
   };
 
-  const handleIframeError = () => {
-    setError('Failed to load PDF');
+  const handleIframeError = (e: any) => {
+    console.error('PDF iframe error:', e);
+    console.error('PDF URL:', url);
+    setError(`Failed to load PDF. Please check the URL: ${url}`);
     setLoading(false);
+    toast.error('Failed to load PDF. Try downloading instead.');
   };
 
   const zoomIn = () => {
@@ -100,7 +174,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
 
   const downloadPDF = () => {
     const link = document.createElement('a');
-    link.href = url;
+    link.href = proxyUrl;
     link.download = `${title}.pdf`;
     document.body.appendChild(link);
     link.click();
@@ -171,7 +245,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <a 
-              href={url} 
+              href={proxyUrl} 
               target="_blank" 
               rel="noopener noreferrer"
               className="text-sm text-blue-600 hover:underline flex items-center gap-1"
@@ -211,15 +285,29 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
             width: `${100 / scale}%`
           }}
         >
-          <iframe
-            ref={iframeRef}
-            src={`${url}#toolbar=1&navpanes=1&scrollbar=1`}
-            className="w-full h-full border-0"
-            title={title}
-            onLoad={handleIframeLoad}
-            onError={handleIframeError}
-            style={{ minHeight: '600px' }}
-          />
+          {proxyUrl && proxyUrl !== 'data:;base64,=' && !proxyUrl.startsWith('data:;base64,=') && proxyUrl.startsWith('http') ? (
+            <iframe
+              ref={iframeRef}
+              src={proxyUrl}
+              className="w-full h-full border-0"
+              title={title}
+              onLoad={handleIframeLoad}
+              onError={handleIframeError}
+              style={{ minHeight: '600px' }}
+              allow="fullscreen"
+            />
+          ) : (
+            <div className="flex items-center justify-center h-96">
+              <div className="text-center text-gray-500">
+                <p className="text-lg font-semibold mb-2">Invalid PDF URL</p>
+                <p className="text-sm mb-4">The PDF URL is not valid or accessible.</p>
+                <Button onClick={downloadPDF} variant="outline">
+                  <Download className="w-4 h-4 mr-2" />
+                  Try Download Instead
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
         
         {/* Completion Button */}

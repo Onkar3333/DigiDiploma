@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { authService } from '@/lib/auth';
 import { toast } from 'sonner';
-import { Eye, Loader2, Reply } from 'lucide-react';
+import { Eye, Loader2, Reply, Trash2 } from 'lucide-react';
 
 type ReplyEntry = {
   subject: string;
@@ -231,6 +231,36 @@ const AdminMessageCenter: React.FC = () => {
     }
   };
 
+  const handleDelete = async (record: MessageRecord) => {
+    if (!confirm(`Are you sure you want to delete this ${record.type === 'contact' ? 'message' : 'request'}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const endpoint =
+        record.type === 'contact'
+          ? `/api/contact/messages/${record.id}`
+          : `/api/projects/requests/${record.id}`;
+      const res = await fetch(endpoint, {
+        method: 'DELETE',
+        headers: { ...authService.getAuthHeaders() }
+      });
+      if (!res.ok) throw new Error('Failed to delete');
+      toast.success(`${record.type === 'contact' ? 'Message' : 'Request'} deleted successfully`);
+      if (record.type === 'contact') {
+        fetchContactMessages();
+      } else {
+        fetchProjectRequests();
+      }
+      if (modalState.record?.id === record.id) {
+        handleCloseModal();
+      }
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || 'Failed to delete');
+    }
+  };
+
   const statusBadge = (status: 'new' | 'replied') =>
     status === 'replied'
       ? 'bg-emerald-100 text-emerald-700'
@@ -317,10 +347,20 @@ const AdminMessageCenter: React.FC = () => {
                           </td>
                           <td className="px-4 py-3 text-slate-500">{formatDateTime(message.createdAt)}</td>
                           <td className="px-4 py-3">
-                            <Button variant="ghost" size="sm" onClick={() => handleOpenRecord(message)}>
-                              <Eye className="w-4 h-4 mr-1" />
-                              View
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => handleOpenRecord(message)}>
+                                <Eye className="w-4 h-4 mr-1" />
+                                View
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => handleDelete(message)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -390,10 +430,20 @@ const AdminMessageCenter: React.FC = () => {
                           </td>
                           <td className="px-4 py-3 text-slate-500">{formatDateTime(request.createdAt)}</td>
                           <td className="px-4 py-3">
-                            <Button variant="ghost" size="sm" onClick={() => handleOpenRecord(request)}>
-                              <Eye className="w-4 h-4 mr-1" />
-                              View
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => handleOpenRecord(request)}>
+                                <Eye className="w-4 h-4 mr-1" />
+                                View
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => handleDelete(request)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -472,22 +522,32 @@ const AdminMessageCenter: React.FC = () => {
                       onChange={(e) => setReplyForm((prev) => ({ ...prev, footerText: e.target.value }))}
                       placeholder="Footer text"
                     />
-                    <div className="flex gap-2">
-                      <Button onClick={handleSendReply} disabled={sendingReply || !replyForm.subject || !replyForm.messageText}>
-                        {sendingReply ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Sending...
-                          </>
-                        ) : (
-                          <>
-                            <Reply className="w-4 h-4 mr-2" />
-                            Send Reply
-                          </>
-                        )}
-                      </Button>
-                      <Button variant="outline" onClick={handleCloseModal}>
-                        Cancel
+                    <div className="flex gap-2 justify-between">
+                      <div className="flex gap-2">
+                        <Button onClick={handleSendReply} disabled={sendingReply || !replyForm.subject || !replyForm.messageText}>
+                          {sendingReply ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Sending...
+                            </>
+                          ) : (
+                            <>
+                              <Reply className="w-4 h-4 mr-2" />
+                              Send Reply
+                            </>
+                          )}
+                        </Button>
+                        <Button variant="outline" onClick={handleCloseModal}>
+                          Cancel
+                        </Button>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => modalState.record && handleDelete(modalState.record)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
                       </Button>
                     </div>
                   </div>

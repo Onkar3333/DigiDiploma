@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BookOpen, FileText, Code, Cpu, Layers, Globe, Star, Pencil, Trash2, Users, Settings, Bell, ClipboardList, GraduationCap, UserCog, TrendingUp, LogOut, Mail, FolderKanban, Briefcase } from "lucide-react";
+import { BookOpen, FileText, Code, Cpu, Layers, Globe, Star, Pencil, Trash2, Users, Settings, Bell, ClipboardList, GraduationCap, UserCog, TrendingUp, LogOut, Mail, FolderKanban, Briefcase, Menu, X, Download, Lock, User } from "lucide-react";
 import axios from "axios";
 import { authService } from '@/lib/auth';
 import { toast } from "sonner";
@@ -19,6 +19,9 @@ import AdminMessageCenter from "@/components/AdminMessageCenter";
 import AdminProjectsManager from "@/components/AdminProjectsManager";
 import AdminCourseManager from "@/components/AdminCourseManager";
 import AdminInternshipApplications from "@/components/AdminInternshipApplications";
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import { Document, Packer, Paragraph, Table, TableCell, TableRow, WidthType, TextRun, AlignmentType } from 'docx';
 
 // Local material type since external helper was removed
 type MaterialItem = { id: string; name: string; url: string; type: string; uploadedAt: string; subjectCode: string; downloads?: number; rating?: number };
@@ -38,7 +41,7 @@ type DashboardSummary = {
 
 type AdminNotification = {
   id: string;
-  type: 'contact' | 'project';
+  type: 'contact' | 'project' | 'internship';
   title: string;
   description: string;
   timestamp: string;
@@ -314,6 +317,13 @@ const AdminDashboard: React.FC = () => {
   const [subjects, setSubjects] = useState<any[]>([]);
   // Portal control state
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+  
+  // Profile/Password change state
+  const [passwordForm, setPasswordForm] = useState({
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const [materials, setMaterials] = useState<MaterialItem[]>([]);
   const [backendBranches, setBackendBranches] = useState<string[]>([]);
@@ -330,6 +340,24 @@ const AdminDashboard: React.FC = () => {
   const [dashboardSummaryLoading, setDashboardSummaryLoading] = useState(false);
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // Keep sidebar visible on desktop even when dev tools open
+  useEffect(() => {
+    const checkViewport = () => {
+      // On desktop (>= 768px), keep sidebar visible
+      if (window.innerWidth >= 768) {
+        // Sidebar should be visible on desktop via CSS, but ensure state is correct
+        // Don't force it open, just ensure it doesn't get hidden by viewport changes
+      }
+    };
+    
+    // Check on mount and resize
+    checkViewport();
+    window.addEventListener('resize', checkViewport);
+    return () => window.removeEventListener('resize', checkViewport);
+  }, []);
+  
   // removed duplicate subjects state
   const [newUser, setNewUser] = useState({
     name: '',
@@ -490,7 +518,10 @@ const AdminDashboard: React.FC = () => {
 
 
 
-  const handleAddUser = async (userData?: any) => {
+  const handleAddUser = async (e?: React.FormEvent, userData?: any) => {
+    if (e) {
+      e.preventDefault();
+    }
     try {
       const data = userData || {
         name: newUser.name,
@@ -510,13 +541,13 @@ const AdminDashboard: React.FC = () => {
       });
 
       if (res.ok) {
-    toast("User added successfully");
+        toast("User added successfully");
         setNewUser({ name: '', email: '', studentId: '', password: '', branch: '', semester: '', college: '', userType: 'student' });
         fetchUsers(); // Refresh the users list
         fetchDashboardSummary({ force: true });
       } else {
-        const data = await res.json();
-        toast(data.error || "Failed to add user");
+        const errorData = await res.json();
+        toast(errorData.error || "Failed to add user");
       }
     } catch (err) {
       toast("Failed to add user");
@@ -538,6 +569,227 @@ const AdminDashboard: React.FC = () => {
       }
     } catch (err) {
       toast("Failed to delete user");
+    }
+  };
+
+  // Download functions for user data
+  const downloadCSV = () => {
+    if (users.length === 0) {
+      toast.error("No users to download");
+      return;
+    }
+
+    const headers = ['Name', 'Email', 'Branch', 'Semester', 'Enrollment Number', 'College', 'User Type'];
+    const rows = users.map(user => [
+      user.name || '',
+      user.email || '',
+      user.branch || '',
+      user.semester || '',
+      user.studentId || '',
+      user.college || '',
+      user.userType || 'student'
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell.toString().replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `users_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("CSV file downloaded successfully");
+  };
+
+  const downloadExcel = () => {
+    if (users.length === 0) {
+      toast.error("No users to download");
+      return;
+    }
+
+    const worksheetData = users.map(user => ({
+      'Name': user.name || '',
+      'Email': user.email || '',
+      'Branch': user.branch || '',
+      'Semester': user.semester || '',
+      'Enrollment Number': user.studentId || '',
+      'College': user.college || '',
+      'User Type': user.userType || 'student'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Users');
+    
+    // Auto-size columns
+    const maxWidth = 50;
+    const wscols = [
+      { wch: 20 }, // Name
+      { wch: 30 }, // Email
+      { wch: 30 }, // Branch
+      { wch: 10 }, // Semester
+      { wch: 20 }, // Enrollment Number
+      { wch: 30 }, // College
+      { wch: 15 }  // User Type
+    ];
+    worksheet['!cols'] = wscols;
+
+    XLSX.writeFile(workbook, `users_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success("Excel file downloaded successfully");
+  };
+
+  const downloadWord = async () => {
+    if (users.length === 0) {
+      toast.error("No users to download");
+      return;
+    }
+
+    try {
+      const tableRows = [
+        new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph({ text: "Name", alignment: AlignmentType.LEFT })] }),
+            new TableCell({ children: [new Paragraph({ text: "Email", alignment: AlignmentType.LEFT })] }),
+            new TableCell({ children: [new Paragraph({ text: "Branch", alignment: AlignmentType.LEFT })] }),
+            new TableCell({ children: [new Paragraph({ text: "Semester", alignment: AlignmentType.LEFT })] }),
+            new TableCell({ children: [new Paragraph({ text: "Enrollment Number", alignment: AlignmentType.LEFT })] }),
+            new TableCell({ children: [new Paragraph({ text: "College", alignment: AlignmentType.LEFT })] }),
+            new TableCell({ children: [new Paragraph({ text: "User Type", alignment: AlignmentType.LEFT })] })
+          ]
+        })
+      ];
+
+      users.forEach(user => {
+        tableRows.push(
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ text: user.name || '' })] }),
+              new TableCell({ children: [new Paragraph({ text: user.email || '' })] }),
+              new TableCell({ children: [new Paragraph({ text: user.branch || '' })] }),
+              new TableCell({ children: [new Paragraph({ text: user.semester || '' })] }),
+              new TableCell({ children: [new Paragraph({ text: user.studentId || '' })] }),
+              new TableCell({ children: [new Paragraph({ text: user.college || '' })] }),
+              new TableCell({ children: [new Paragraph({ text: user.userType || 'student' })] })
+            ]
+          })
+        );
+      });
+
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "User Management Data",
+                  bold: true,
+                  size: 32
+                })
+              ],
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 400 }
+            }),
+            new Table({
+              rows: tableRows,
+              width: {
+                size: 100,
+                type: WidthType.PERCENTAGE
+              }
+            })
+          ]
+        }]
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `users_${new Date().toISOString().split('T')[0]}.docx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success("Word document downloaded successfully");
+    } catch (error) {
+      console.error("Error generating Word document:", error);
+      toast.error("Failed to generate Word document");
+    }
+  };
+
+  const downloadPDF = () => {
+    if (users.length === 0) {
+      toast.error("No users to download");
+      return;
+    }
+
+    try {
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+      const startY = 20;
+      let y = startY;
+
+      // Title
+      pdf.setFontSize(18);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('User Management Data', pageWidth / 2, y, { align: 'center' });
+      y += 10;
+
+      // Table headers
+      pdf.setFontSize(10);
+      pdf.setFont(undefined, 'bold');
+      const colWidths = [35, 50, 40, 20, 30, 30];
+      const headers = ['Name', 'Email', 'Branch', 'Sem', 'Enrollment', 'College'];
+      let x = margin;
+
+      headers.forEach((header, i) => {
+        pdf.text(header, x, y);
+        x += colWidths[i];
+      });
+      y += 7;
+
+      // Table rows
+      pdf.setFont(undefined, 'normal');
+      users.forEach((user, index) => {
+        if (y > pageHeight - 20) {
+          pdf.addPage();
+          y = startY;
+        }
+
+        x = margin;
+        const rowData = [
+          (user.name || '').substring(0, 20),
+          (user.email || '').substring(0, 25),
+          (user.branch || '').substring(0, 18),
+          user.semester || '',
+          (user.studentId || '').substring(0, 15),
+          (user.college || '').substring(0, 18)
+        ];
+
+        rowData.forEach((data, i) => {
+          pdf.text(data, x, y);
+          x += colWidths[i];
+        });
+        y += 7;
+
+        // Draw line after each row
+        pdf.setLineWidth(0.1);
+        pdf.line(margin, y - 2, pageWidth - margin, y - 2);
+      });
+
+      pdf.save(`users_${new Date().toISOString().split('T')[0]}.pdf`);
+      toast.success("PDF file downloaded successfully");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF");
     }
   };
 
@@ -680,19 +932,40 @@ const AdminDashboard: React.FC = () => {
     return date.toLocaleString();
   }, []);
 
-  const handleNotificationNavigate = useCallback((type: 'contact' | 'project', notificationId?: string) => {
+  const handleNotificationNavigate = useCallback(async (type: 'contact' | 'project' | 'internship', notificationId?: string) => {
     if (notificationId) {
+      // Mark as read in UI immediately
       setNotifications(prev => prev.map(notif => notif.id === notificationId ? { ...notif, read: true } : notif));
+      
+      // Mark as viewed in backend for persistence
+      try {
+        if (type === 'contact') {
+          const id = notificationId.replace('contact-', '');
+          await authenticatedFetch(`/api/contact/messages/${id}/view`, { method: 'PATCH' });
+        } else if (type === 'project') {
+          const id = notificationId.replace('project-', '');
+          await authenticatedFetch(`/api/projects/requests/${id}/view`, { method: 'PATCH' });
+        } else if (type === 'internship') {
+          const id = notificationId.replace('internship-', '');
+          await authenticatedFetch(`/api/internships/${id}/view`, { method: 'PATCH' });
+        }
+      } catch (error) {
+        console.error('Failed to mark notification as viewed:', error);
+        // Don't fail the navigation if marking as viewed fails
+      }
     }
     setShowNotifications(false);
     if (type === 'contact') {
       setActivePanel('messages');
       window.dispatchEvent(new CustomEvent('messages:refresh', { detail: { type: 'contact' } }));
-    } else {
+    } else if (type === 'project') {
       setActivePanel('projects');
       window.dispatchEvent(new CustomEvent('messages:refresh', { detail: { type: 'project' } }));
+    } else if (type === 'internship') {
+      setActivePanel('internships');
+      window.dispatchEvent(new CustomEvent('messages:refresh', { detail: { type: 'internship' } }));
     }
-  }, []);
+  }, [authenticatedFetch]);
 
   const fetchDashboardSummary = useCallback(async (options: { force?: boolean } = {}) => {
     const { force } = options;
@@ -718,13 +991,16 @@ const AdminDashboard: React.FC = () => {
 
   const fetchInitialNotifications = useCallback(async () => {
     try {
-      const [contactRes, projectRes] = await Promise.all([
+      const [contactRes, projectRes, internshipRes] = await Promise.all([
         authenticatedFetch('/api/contact/messages'),
-        authenticatedFetch('/api/projects/requests/all')
+        authenticatedFetch('/api/projects/requests/all'),
+        authenticatedFetch('/api/internships')
       ]);
 
       const contactData = contactRes.ok ? await contactRes.json() : [];
       const projectData = projectRes.ok ? await projectRes.json() : [];
+      const internshipData = internshipRes.ok ? await internshipRes.json() : [];
+      const internshipApplications = Array.isArray(internshipData?.applications) ? internshipData.applications : [];
 
       const contactNotifications: AdminNotification[] = Array.isArray(contactData)
         ? contactData.slice(0, 10).map((message: any) => ({
@@ -733,6 +1009,7 @@ const AdminDashboard: React.FC = () => {
             title: message.subject || 'New contact message',
             description: `${message.name || 'Unknown'} • ${message.email || 'No email provided'}`,
             timestamp: message.createdAt || new Date().toISOString(),
+            // Mark as read only if explicitly viewed, otherwise unread
             read: Boolean(message.viewedAt)
           }))
         : [];
@@ -744,19 +1021,53 @@ const AdminDashboard: React.FC = () => {
             title: request.projectIdea || request.title || 'New project request',
             description: `${request.name || 'Unknown'} • ${request.email || 'No email provided'}`,
             timestamp: request.createdAt || new Date().toISOString(),
+            // Mark as read only if explicitly viewed, otherwise unread
             read: Boolean(request.viewedAt)
           }))
         : [];
 
-      const combined = [...contactNotifications, ...projectNotifications].sort(
+      const internshipNotifications: AdminNotification[] = Array.isArray(internshipApplications)
+        ? internshipApplications.slice(0, 10).map((application: any) => ({
+            id: `internship-${application.id || application._id}`,
+            type: 'internship' as const,
+            title: `Internship Application - ${application.name || 'Unknown'}`,
+            description: `${application.branch || 'N/A'} • ${application.type || 'N/A'} • ${application.email || 'No email'}`,
+            timestamp: application.createdAt || application.submittedAt || new Date().toISOString(),
+            // Mark as read only if explicitly viewed, otherwise unread
+            read: Boolean(application.viewedAt)
+          }))
+        : [];
+      
+      console.log('📬 Fetched notifications:', {
+        contact: contactNotifications.length,
+        project: projectNotifications.length,
+        internship: internshipNotifications.length,
+        unreadContact: contactNotifications.filter(n => !n.read).length,
+        unreadProject: projectNotifications.filter(n => !n.read).length,
+        unreadInternship: internshipNotifications.filter(n => !n.read).length
+      });
+
+      const combined = [...contactNotifications, ...projectNotifications, ...internshipNotifications].sort(
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
 
+      // Always update notifications, but merge with existing to preserve read status
+      // Also respect backend read status (viewedAt) for persistence across reloads
       setNotifications((prev) => {
-        if (prev.length === 0) {
-          return combined.slice(0, 25);
-        }
-        return prev;
+        const existingMap = new Map(prev.map(n => [n.id, n]));
+        const merged = combined.map(newNotif => {
+          const existing = existingMap.get(newNotif.id);
+          // If backend says it's read (viewedAt exists), use that
+          // Otherwise, preserve frontend read status if it exists
+          if (newNotif.read) {
+            return newNotif; // Backend says it's read
+          }
+          if (existing && existing.read) {
+            return existing; // Frontend says it's read (but backend hasn't updated yet)
+          }
+          return newNotif;
+        });
+        return merged.slice(0, 25);
       });
     } catch (error) {
       console.error('Failed to bootstrap notifications:', error);
@@ -779,6 +1090,11 @@ const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchInitialNotifications();
+    // Refresh notifications every 30 seconds
+    const interval = setInterval(() => {
+      fetchInitialNotifications();
+    }, 30000);
+    return () => clearInterval(interval);
   }, [fetchInitialNotifications]);
 
   useEffect(() => {
@@ -1012,14 +1328,26 @@ const AdminDashboard: React.FC = () => {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between py-4">
             <div className="flex items-center gap-4">
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="md:hidden p-2 rounded-lg hover:bg-slate-100 transition-colors"
+                aria-label="Toggle menu"
+              >
+                {sidebarOpen ? (
+                  <X className="w-6 h-6 text-slate-700" />
+                ) : (
+                  <Menu className="w-6 h-6 text-slate-700" />
+                )}
+              </button>
               <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
                 <Settings className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+                <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
                   Admin Dashboard
                 </h1>
-                <p className="text-slate-600 text-sm">Manage your educational platform</p>
+                <p className="text-slate-600 text-xs sm:text-sm hidden sm:block">Manage your educational platform</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -1058,11 +1386,35 @@ const AdminDashboard: React.FC = () => {
                     <div className="max-h-96 overflow-y-auto">
                       {notifications.length === 0 && (
                         <div className="p-6 text-center text-sm text-slate-500">
-                          You're all caught up! Recent contact messages and project requests will appear here.
+                          You're all caught up! Recent contact messages, project requests, and internship applications will appear here.
                         </div>
                       )}
                       {notifications.map((notification) => {
-                        const NotificationIcon = notification.type === 'contact' ? Mail : FolderKanban;
+                        const getNotificationIcon = () => {
+                          switch (notification.type) {
+                            case 'contact':
+                              return Mail;
+                            case 'project':
+                              return FolderKanban;
+                            case 'internship':
+                              return Briefcase;
+                            default:
+                              return Mail;
+                          }
+                        };
+                        const NotificationIcon = getNotificationIcon();
+                        const getIconColor = () => {
+                          switch (notification.type) {
+                            case 'contact':
+                              return 'bg-blue-100 text-blue-700';
+                            case 'project':
+                              return 'bg-purple-100 text-purple-700';
+                            case 'internship':
+                              return 'bg-orange-100 text-orange-700';
+                            default:
+                              return 'bg-blue-100 text-blue-700';
+                          }
+                        };
                         return (
                           <button
                             key={notification.id}
@@ -1074,11 +1426,7 @@ const AdminDashboard: React.FC = () => {
                             }`}
                           >
                             <span
-                              className={`mt-1 inline-flex h-8 w-8 items-center justify-center rounded-full ${
-                                notification.type === 'contact'
-                                  ? 'bg-blue-100 text-blue-700'
-                                  : 'bg-purple-100 text-purple-700'
-                              }`}
+                              className={`mt-1 inline-flex h-8 w-8 items-center justify-center rounded-full ${getIconColor()}`}
                             >
                               <NotificationIcon className="w-4 h-4" />
                             </span>
@@ -1123,9 +1471,23 @@ const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex">
+      <div className="flex relative">
+        {/* Mobile Overlay */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+        
         {/* Modern Sidebar */}
-        <aside className="w-72 bg-white/70 backdrop-blur-sm border-r border-white/20 p-6 flex flex-col gap-2">
+        <aside className={`
+          fixed md:static inset-y-0 left-0 z-50
+          w-72 bg-white/95 md:bg-white/70 backdrop-blur-sm border-r border-white/20 p-6 flex flex-col gap-2
+          transform transition-transform duration-300 ease-in-out
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          overflow-y-auto
+        `}>
           <div className="mb-6">
             <h2 className="text-xl font-bold text-slate-800 mb-2">Admin Panel</h2>
             <p className="text-sm text-slate-600">Manage your platform</p>
@@ -1138,7 +1500,10 @@ const AdminDashboard: React.FC = () => {
                   ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg' 
                   : 'hover:bg-slate-100 text-slate-700'
               }`}
-              onClick={() => setActivePanel('dashboard')}
+              onClick={() => {
+                setActivePanel('dashboard');
+                setSidebarOpen(false);
+              }}
             >
               <Star className={`w-5 h-5 ${activePanel === 'dashboard' ? 'text-white' : 'text-slate-600'}`} />
               <span className="font-medium">Dashboard</span>
@@ -1150,7 +1515,10 @@ const AdminDashboard: React.FC = () => {
                   ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg' 
                   : 'hover:bg-slate-100 text-slate-700'
               }`}
-              onClick={() => setActivePanel('notice')}
+              onClick={() => {
+                setActivePanel('notice');
+                setSidebarOpen(false);
+              }}
             >
               <Bell className={`w-5 h-5 ${activePanel === 'notice' ? 'text-white' : 'text-slate-600'}`} />
               <span className="font-medium">Notice Management</span>
@@ -1161,7 +1529,10 @@ const AdminDashboard: React.FC = () => {
                   ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg' 
                   : 'hover:bg-slate-100 text-slate-700'
               }`}
-              onClick={() => setActivePanel('users')}
+              onClick={() => {
+                setActivePanel('users');
+                setSidebarOpen(false);
+              }}
             >
               <Users className={`w-5 h-5 ${activePanel === 'users' ? 'text-white' : 'text-slate-600'}`} />
               <span className="font-medium">User Management</span>
@@ -1172,7 +1543,10 @@ const AdminDashboard: React.FC = () => {
                   ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg' 
                   : 'hover:bg-slate-100 text-slate-700'
               }`}
-              onClick={() => setActivePanel('portal')}
+              onClick={() => {
+                setActivePanel('portal');
+                setSidebarOpen(false);
+              }}
             >
               <Settings className={`w-5 h-5 ${activePanel === 'portal' ? 'text-white' : 'text-slate-600'}`} />
               <span className="font-medium">Portal Control</span>
@@ -1183,7 +1557,10 @@ const AdminDashboard: React.FC = () => {
                   ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg' 
                   : 'hover:bg-slate-100 text-slate-700'
               }`}
-              onClick={() => setActivePanel('materials')}
+              onClick={() => {
+                setActivePanel('materials');
+                setSidebarOpen(false);
+              }}
             >
               <Layers className={`w-5 h-5 ${activePanel === 'materials' ? 'text-white' : 'text-slate-600'}`} />
               <span className="font-medium">Materials</span>
@@ -1194,7 +1571,10 @@ const AdminDashboard: React.FC = () => {
                   ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg' 
                   : 'hover:bg-slate-100 text-slate-700'
               }`}
-              onClick={() => setActivePanel('subjects')}
+              onClick={() => {
+                setActivePanel('subjects');
+                setSidebarOpen(false);
+              }}
             >
               <BookOpen className={`w-5 h-5 ${activePanel === 'subjects' ? 'text-white' : 'text-slate-600'}`} />
               <span className="font-medium">Subjects</span>
@@ -1205,7 +1585,10 @@ const AdminDashboard: React.FC = () => {
                   ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg' 
                   : 'hover:bg-slate-100 text-slate-700'
               }`}
-              onClick={() => setActivePanel('courses')}
+              onClick={() => {
+                setActivePanel('courses');
+                setSidebarOpen(false);
+              }}
             >
               <BookOpen className={`w-5 h-5 ${activePanel === 'courses' ? 'text-white' : 'text-slate-600'}`} />
               <span className="font-medium">Courses</span>
@@ -1216,7 +1599,10 @@ const AdminDashboard: React.FC = () => {
                   ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg' 
                   : 'hover:bg-slate-100 text-slate-700'
               }`}
-              onClick={() => setActivePanel('messages')}
+              onClick={() => {
+                setActivePanel('messages');
+                setSidebarOpen(false);
+              }}
             >
               <Mail className={`w-5 h-5 ${activePanel === 'messages' ? 'text-white' : 'text-slate-600'}`} />
               <span className="font-medium">Messages</span>
@@ -1227,7 +1613,10 @@ const AdminDashboard: React.FC = () => {
                   ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg' 
                   : 'hover:bg-slate-100 text-slate-700'
               }`}
-              onClick={() => setActivePanel('projects')}
+              onClick={() => {
+                setActivePanel('projects');
+                setSidebarOpen(false);
+              }}
             >
               <FolderKanban className={`w-5 h-5 ${activePanel === 'projects' ? 'text-white' : 'text-slate-600'}`} />
               <span className="font-medium">Projects</span>
@@ -1238,17 +1627,36 @@ const AdminDashboard: React.FC = () => {
                   ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg' 
                   : 'hover:bg-slate-100 text-slate-700'
               }`}
-              onClick={() => setActivePanel('internships')}
+              onClick={() => {
+                setActivePanel('internships');
+                setSidebarOpen(false);
+              }}
             >
               <Briefcase className={`w-5 h-5 ${activePanel === 'internships' ? 'text-white' : 'text-slate-600'}`} />
               <span className="font-medium">Internship Applications</span>
+            </div>
+            
+            {/* Profile Section */}
+            <div
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all ${
+                activePanel === 'profile' 
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg' 
+                  : 'hover:bg-slate-100 text-slate-700'
+              }`}
+              onClick={() => {
+                setActivePanel('profile');
+                setSidebarOpen(false);
+              }}
+            >
+              <UserCog className={`w-5 h-5 ${activePanel === 'profile' ? 'text-white' : 'text-slate-600'}`} />
+              <span className="font-medium">Profile</span>
             </div>
           </div>
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 p-8">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 overflow-x-hidden">
+          <div className="max-w-7xl mx-auto w-full">
         {/* Only render the selected panel's content */}
         {activePanel === 'dashboard' && (
           <ModernAdminDashboard 
@@ -1258,6 +1666,7 @@ const AdminDashboard: React.FC = () => {
             maintenanceMode={maintenanceMode}
             summary={dashboardSummary}
             summaryLoading={dashboardSummaryLoading}
+            notifications={notifications}
             onRefreshSummary={() => fetchDashboardSummary({ force: true })}
             onQuickAction={(key) => {
               switch (key) {
@@ -1399,9 +1808,49 @@ const AdminDashboard: React.FC = () => {
 
             {/* Users Table */}
             <div className="bg-white rounded-xl shadow-card overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h4 className="text-lg font-semibold">All Students</h4>
-                <p className="text-sm text-muted-foreground">Manage student accounts</p>
+              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                  <h4 className="text-lg font-semibold">All Students</h4>
+                  <p className="text-sm text-muted-foreground">Manage student accounts</p>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={downloadCSV}
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={downloadExcel}
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Excel
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={downloadWord}
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Word
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={downloadPDF}
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    PDF
+                  </Button>
+                </div>
               </div>
               
               {loadingUsers ? (
@@ -1586,6 +2035,157 @@ const AdminDashboard: React.FC = () => {
         {activePanel === 'projects' && (
           <div className="p-8 max-w-7xl mx-auto">
             <AdminProjectsManager />
+          </div>
+        )}
+        
+        {activePanel === 'profile' && (
+          <div className="w-full px-4 sm:px-6 md:px-8 py-6 md:py-8 max-w-4xl mx-auto">
+            <Card className="shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center">
+                    <User className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900">Admin Profile</h2>
+                    <p className="text-slate-600">{user?.email || user?.name || 'Admin User'}</p>
+                  </div>
+                </div>
+                
+                <div className="border-t border-slate-200 pt-6 mt-6">
+                  <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <Lock className="w-5 h-5" />
+                    Change Password
+                  </h3>
+                  
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      
+                      // Validate passwords
+                      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+                        toast.error('Passwords do not match');
+                        return;
+                      }
+                      
+                      if (passwordForm.newPassword.length < 8) {
+                        toast.error('Password must be at least 8 characters long');
+                        return;
+                      }
+                      
+                      // Check password requirements
+                      const hasUpperCase = /[A-Z]/.test(passwordForm.newPassword);
+                      const hasLowerCase = /[a-z]/.test(passwordForm.newPassword);
+                      const hasNumber = /[0-9]/.test(passwordForm.newPassword);
+                      const hasSpecialChar = /[!@#$%^&*]/.test(passwordForm.newPassword);
+                      
+                      if (!hasUpperCase || !hasLowerCase || !hasNumber || !hasSpecialChar) {
+                        toast.error('Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character');
+                        return;
+                      }
+                      
+                      setChangingPassword(true);
+                      try {
+                        const response = await authenticatedFetch('/api/users/admin/change-password', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            newPassword: passwordForm.newPassword
+                          })
+                        });
+                        
+                        if (response.ok) {
+                          toast.success('Password changed successfully!');
+                          setPasswordForm({ newPassword: '', confirmPassword: '' });
+                        } else {
+                          const errorData = await response.json();
+                          toast.error(errorData.error || 'Failed to change password');
+                        }
+                      } catch (error) {
+                        console.error('Error changing password:', error);
+                        toast.error('Failed to change password. Please try again.');
+                      } finally {
+                        setChangingPassword(false);
+                      }
+                    }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <label htmlFor="newPassword" className="block text-sm font-medium text-slate-700 mb-2">
+                        New Password
+                      </label>
+                      <input
+                        type="password"
+                        id="newPassword"
+                        value={passwordForm.newPassword}
+                        onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Enter new password"
+                        required
+                        minLength={8}
+                      />
+                      <p className="mt-1 text-xs text-slate-500">
+                        Must be at least 8 characters with uppercase, lowercase, number, and special character
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-700 mb-2">
+                        Confirm New Password
+                      </label>
+                      <input
+                        type="password"
+                        id="confirmPassword"
+                        value={passwordForm.confirmPassword}
+                        onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Confirm new password"
+                        required
+                        minLength={8}
+                      />
+                    </div>
+                    
+                    <Button
+                      type="submit"
+                      disabled={changingPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
+                      className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white"
+                    >
+                      {changingPassword ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Changing Password...
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-4 h-4 mr-2" />
+                          Change Password
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </div>
+                
+                <div className="border-t border-slate-200 pt-6 mt-6">
+                  <h3 className="text-lg font-semibold mb-2">Account Information</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Name:</span>
+                      <span className="font-medium">{user?.name || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Email:</span>
+                      <span className="font-medium">{user?.email || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">User Type:</span>
+                      <span className="font-medium capitalize">{user?.userType || 'admin'}</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
           </div>

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { FileText, Video, BookOpen, Download, Star, Clock, Eye } from 'lucide-react';
+import { FileText, Video, BookOpen, Download, Star, Clock, Eye, Lock, ExternalLink } from 'lucide-react';
 import PDFViewer from './PDFViewer';
 import VideoPlayer from './VideoPlayer';
 import { toast } from 'sonner';
@@ -24,6 +24,9 @@ interface Material {
   rating: number;
   ratingCount: number;
   createdAt: string;
+  accessType?: 'free' | 'drive_protected' | 'paid';
+  price?: number;
+  googleDriveUrl?: string;
 }
 
 interface MaterialViewerProps {
@@ -48,6 +51,7 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
   onStatsUpdate
 }) => {
   const [activeTab, setActiveTab] = useState<string>('viewer');
+  const [hasPurchased, setHasPurchased] = useState<boolean | null>(null);
   const [progress, setProgress] = useState<number>(initialProgress);
   const [timeSpent, setTimeSpent] = useState<number>(initialTimeSpent);
   const [lastPosition, setLastPosition] = useState<number>(initialLastPosition);
@@ -64,6 +68,33 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
     setCurrentRating(material.rating);
     setCurrentRatingCount(material.ratingCount);
   }, [material.downloads, material.rating, material.ratingCount]);
+
+  // Check purchase status for paid materials
+  useEffect(() => {
+    if (material.accessType === 'paid') {
+      const checkPurchase = async () => {
+        try {
+          const checkResponse = await fetch(`/api/payments/check-purchase/${material.id}`, {
+            headers: authService.getAuthHeaders()
+          });
+          
+          if (checkResponse.ok) {
+            const checkData = await checkResponse.json();
+            setHasPurchased(checkData.hasPurchased);
+          } else {
+            setHasPurchased(false);
+          }
+        } catch (error) {
+          console.error('Error checking purchase status:', error);
+          setHasPurchased(false);
+        }
+      };
+      
+      checkPurchase();
+    } else {
+      setHasPurchased(true); // Non-paid materials are always "purchased"
+    }
+  }, [material.id, material.accessType]);
 
   const handleProgressUpdate = (newProgress: number, newTimeSpent: number, newLastPosition: number) => {
     setProgress(newProgress);
@@ -84,20 +115,141 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
 
   // Ensure URL is absolute (adds protocol and host if relative)
   const getAbsoluteUrl = (url: string) => {
-    if (!url) return '';
+    if (!url) {
+      console.error('Material URL is empty');
+      return '';
+    }
+    
     // If already absolute (starts with http:// or https://), return as is
     if (url.startsWith('http://') || url.startsWith('https://')) {
+      // Check if it's an R2 URL that might have authorization issues
+      // R2 URLs can be in format: https://{account_id}.r2.cloudflarestorage.com/{bucket}/{key}
+      // or: https://{bucket}.{account_id}.r2.cloudflarestorage.com/{key}
+      if (url.includes('r2.cloudflarestorage.com') && !url.includes('/api/materials/proxy/')) {
+        // Extract the key from R2 URL and use proxy endpoint
+        try {
+          const urlObj = new URL(url);
+          const pathParts = urlObj.pathname.split('/').filter(Boolean);
+          
+          // Handle different R2 URL formats
+          let key = '';
+          if (pathParts.length > 1) {
+            // Format: /bucket-name/key/path
+            // Skip the first part (bucket name) and join the rest as the key
+            key = pathParts.slice(1).join('/');
+          } else if (pathParts.length === 1) {
+            // Format: /key (bucket might be in subdomain)
+            key = pathParts[0];
+          }
+          
+          if (key) {
+            const proxyUrl = `${window.location.origin}/api/materials/proxy/r2/${encodeURIComponent(key)}`;
+            console.log('Converting R2 URL to proxy:', url, '->', proxyUrl);
+            return proxyUrl;
+          }
+        } catch (e) {
+          console.warn('Failed to parse R2 URL, using original:', e);
+        }
+      }
       return url;
     }
+    
     // If relative, make it absolute using current origin
     if (url.startsWith('/')) {
-      return `${window.location.origin}${url}`;
+      const absoluteUrl = `${window.location.origin}${url}`;
+      console.log('Converted relative URL to absolute:', url, '->', absoluteUrl);
+      return absoluteUrl;
     }
+    
     // If no leading slash, add it
-    return `${window.location.origin}/${url}`;
+    const absoluteUrl = `${window.location.origin}/${url}`;
+    console.log('Added leading slash to URL:', url, '->', absoluteUrl);
+    return absoluteUrl;
   };
 
   const downloadMaterial = async () => {
+    // Check access type and enforce restrictions
+    if (material.accessType === 'paid') {
+      // Check if user has purchased this material
+      try {
+        const checkResponse = await fetch(`/api/payments/check-purchase/${material.id}`, {
+          headers: authService.getAuthHeaders()
+        });
+        
+        if (checkResponse.ok) {
+          const checkData = await checkResponse.json();
+          if (!checkData.hasPurchased) {
+            toast.error('Payment Required', {
+              description: `Please purchase this material (₹${material.price || 0}) to download it.`
+            });
+            return;
+          }
+        } else {
+          toast.error('Payment Required', {
+            description: `Please purchase this material (₹${material.price || 0}) to download it.`
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking purchase status:', error);
+        toast.error('Payment Required', {
+          description: `Please purchase this material (₹${material.price || 0}) to download it.`
+        });
+        return;
+      }
+
+      // Generate secure download link for paid materials
+      try {
+        const linkResponse = await fetch('/api/payments/generate-download-link', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeaders()
+          },
+          body: JSON.stringify({ materialId: material.id })
+        });
+
+        if (linkResponse.ok) {
+          const linkData = await linkResponse.json();
+          // Open secure download link
+          window.open(linkData.downloadUrl, '_blank');
+          toast.success('Download Started', {
+            description: 'Your secure download link is opening.'
+          });
+          return;
+        } else {
+          const errorData = await linkResponse.json().catch(() => ({}));
+          toast.error('Download Failed', {
+            description: errorData.error || 'Failed to generate download link. Please try again.'
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('Error generating secure download link:', error);
+        toast.error('Download Failed', {
+          description: 'Failed to generate download link. Please try again.'
+        });
+        return;
+      }
+    } else if (material.accessType === 'drive_protected') {
+      // Drive protected materials require Google Drive URL
+      if (!material.googleDriveUrl) {
+        toast.error('Access Restricted', {
+          description: 'This material requires Google Drive access.'
+        });
+        return;
+      }
+      // For drive protected, use the googleDriveUrl
+      if (material.googleDriveUrl) {
+        window.open(material.googleDriveUrl, '_blank');
+        toast.success('Opening Google Drive', {
+          description: 'Material is opening in Google Drive.'
+        });
+        return;
+      }
+    }
+
+    // Free materials can proceed with normal download
     const absoluteUrl = getAbsoluteUrl(material.url);
     try {
       setIsDownloadRecording(true);
@@ -105,6 +257,17 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
         method: 'POST',
         headers: authService.getAuthHeaders()
       });
+      
+      if (response.status === 403) {
+        const errorData = await response.json().catch(() => ({}));
+        if (errorData.requiresPayment) {
+          toast.error('Payment Required', {
+            description: 'Please purchase this material to download it.'
+          });
+          return;
+        }
+      }
+      
       if (response.ok) {
         const data = await response.json().catch(() => null);
         if (data?.material) {
@@ -118,11 +281,23 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
           setCurrentRatingCount(stats.ratingCount ?? currentRatingCount);
           onStatsUpdate?.(material.id, stats);
         }
+        
+        // Check if response contains driveUrl for drive protected materials
+        if (data?.driveUrl) {
+          window.open(data.driveUrl, '_blank');
+          toast.success('Opening Google Drive', {
+            description: 'Material is opening in Google Drive.'
+          });
+          return;
+        }
       }
     } catch (error) {
       console.error('Failed to record download:', error);
     } finally {
       setIsDownloadRecording(false);
+    }
+    
+    // For free materials, proceed with direct download
     const link = document.createElement('a');
     link.href = absoluteUrl;
     link.download = `${material.title}.${material.type === 'pdf' ? 'pdf' : 'mp4'}`;
@@ -130,7 +305,6 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
     link.click();
     document.body.removeChild(link);
     toast.success('Download started');
-    }
   };
 
   const getMaterialIcon = () => {
@@ -191,6 +365,58 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
   };
 
   const renderViewer = () => {
+    // Check access type and enforce restrictions
+    if (material.accessType === 'paid') {
+      if (hasPurchased === null) {
+        return (
+          <div className="flex items-center justify-center h-64 bg-gray-100 rounded-lg">
+            <p className="text-gray-500">Checking access...</p>
+          </div>
+        );
+      }
+      
+      if (!hasPurchased) {
+        return (
+          <div className="flex flex-col items-center justify-center h-64 bg-gray-100 rounded-lg p-6">
+            <Lock className="h-12 w-12 text-gray-400 mb-4" />
+            <p className="text-lg font-semibold text-gray-700 mb-2">Payment Required</p>
+            <p className="text-gray-500 text-center mb-4">
+              Please purchase this material (₹{material.price || 0}) to view it.
+            </p>
+            <Button onClick={downloadMaterial} variant="default">
+              Purchase Material
+            </Button>
+          </div>
+        );
+      }
+    } else if (material.accessType === 'drive_protected') {
+      // For drive protected materials, redirect to Google Drive
+      if (material.googleDriveUrl) {
+        return (
+          <div className="flex flex-col items-center justify-center h-64 bg-gray-100 rounded-lg p-6">
+            <ExternalLink className="h-12 w-12 text-gray-400 mb-4" />
+            <p className="text-lg font-semibold text-gray-700 mb-2">Google Drive Material</p>
+            <p className="text-gray-500 text-center mb-4">
+              This material is available on Google Drive.
+            </p>
+            <Button 
+              onClick={() => window.open(material.googleDriveUrl, '_blank')} 
+              variant="default"
+            >
+              Open in Google Drive
+            </Button>
+          </div>
+        );
+      } else {
+        return (
+          <div className="flex items-center justify-center h-64 bg-gray-100 rounded-lg">
+            <p className="text-gray-500">Google Drive URL not available</p>
+          </div>
+        );
+      }
+    }
+    
+    // Free materials can be viewed normally
     const absoluteUrl = getAbsoluteUrl(material.url);
     
     if (material.type.toLowerCase() === 'pdf') {

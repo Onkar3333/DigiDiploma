@@ -1,545 +1,576 @@
-# 🚀 DigiDiploma - Complete Technology Stack & Deployment Guide
+# 🚀 DigiDiploma Deployment Guide
 
-## 📊 Technology Stack Overview
-
-### **Frontend Technologies**
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| **React** | 18.3.1 | UI framework |
-| **TypeScript** | 5.5.3 | Type-safe JavaScript |
-| **Vite** | 5.4.1 | Build tool & dev server |
-| **Tailwind CSS** | 3.4.11 | Utility-first CSS framework |
-| **React Router** | 6.26.2 | Client-side routing |
-| **Radix UI** | Latest | Accessible component library |
-| **Lucide React** | 0.462.0 | Icon library |
-| **Sonner** | 1.5.0 | Toast notifications |
-| **React Query** | 5.56.2 | Data fetching & caching |
-
-### **Backend Technologies**
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| **Node.js** | 18+ | Runtime environment |
-| **Express.js** | 5.1.0 | Web server framework |
-| **WebSocket (ws)** | 8.18.3 | Real-time communication |
-| **Firebase Admin SDK** | 13.5.0 | Backend Firebase integration |
-| **JWT** | 9.0.2 | Authentication tokens |
-| **bcryptjs** | 3.0.2 | Password hashing |
-| **Joi** | 17.11.0 | Data validation |
-| **Stripe** | 14.0.0 | Payment processing |
-| **Nodemailer** | 6.9.11 | Email sending |
-
-### **Database & Storage**
-| Service | Purpose |
-|---------|---------|
-| **Firebase Firestore** | Real-time NoSQL database |
-| **Firebase Authentication** | User authentication |
-| **Firebase Cloud Storage** | File storage (PDFs, images, videos) |
-| **Firebase Hosting** | Static site hosting |
-
-### **Real-Time Features**
-- **WebSocket Server** (`ws` library) - Real-time notifications
-- **Firebase Firestore** - Real-time database updates
-- **Firebase Cloud Messaging** - Push notifications
+Complete guide to deploy DigiDiploma:
+- **Frontend:** Vercel (Free)
+- **Backend:** Render (Free tier available)
+- **Domain:** Hostinger (DNS management)
 
 ---
 
-## 🌐 Deployment Architecture
+## 📋 Table of Contents
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Production Setup                     │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  Frontend (React + Vite)                                │
-│  ├─ Firebase Hosting (Static Files)                    │
-│  └─ CDN Distribution                                    │
-│                                                         │
-│  Backend (Node.js + Express)                           │
-│  ├─ VPS/Cloud Server (Railway, Render, Heroku)        │
-│  ├─ WebSocket Server (Port 5000)                       │
-│  └─ API Endpoints (/api/*)                             │
-│                                                         │
-│  Database & Services                                    │
-│  ├─ Firebase Firestore (Real-time DB)                  │
-│  ├─ Firebase Storage (Files)                           │
-│  └─ Firebase Auth (Users)                              │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
-```
+1. [Prerequisites](#prerequisites)
+2. [Frontend Deployment (Vercel)](#frontend-deployment-vercel)
+3. [Backend Deployment (Render)](#backend-deployment-render)
+4. [Domain Setup (Hostinger)](#domain-setup-hostinger)
+5. [Environment Variables Setup](#environment-variables-setup)
+6. [Database Configuration (MongoDB Atlas)](#database-configuration-mongodb-atlas)
+7. [Post-Deployment Checklist](#post-deployment-checklist)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
-## 🚀 Deployment Options
+## ✅ Prerequisites
 
-### **Option 1: Firebase Hosting + Cloud Run (Recommended)**
+Before deploying, ensure you have:
 
-**Best for:** Scalable, serverless architecture
-
-#### **Frontend Deployment:**
-```bash
-# 1. Build frontend
-npm install
-npm run build:prod
-
-# 2. Deploy to Firebase Hosting
-firebase deploy --only hosting
-```
-
-#### **Backend Deployment (Cloud Run):**
-```bash
-# 1. Create Dockerfile in backend/
-cat > backend/Dockerfile << EOF
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm install --production
-COPY . .
-EXPOSE 5000
-CMD ["node", "server.js"]
-EOF
-
-# 2. Deploy to Cloud Run
-gcloud run deploy digidiploma-api \
-  --source ./backend \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --port 5000
-```
-
-**Environment Variables in Cloud Run:**
-- Set all `.env` variables in Cloud Run console
-- Firebase credentials
-- JWT_SECRET
-- PORT=5000
+- ✅ GitHub account (for Vercel & Render deployment)
+- ✅ Vercel account (free tier available)
+- ✅ Render account (free tier available)
+- ✅ Hostinger account (for domain)
+- ✅ MongoDB Atlas account (free tier available)
+- ✅ Razorpay account (for payments)
+- ✅ All environment variables ready
 
 ---
 
-### **Option 2: Vercel (Frontend) + Railway/Render (Backend)**
+## 🌐 Frontend Deployment (Vercel)
 
-**Best for:** Easy deployment with GitHub integration
+### Step 1: Prepare Your Code
 
-#### **Frontend to Vercel:**
-```bash
-# 1. Install Vercel CLI
-npm install -g vercel
-
-# 2. Deploy
-vercel --prod
-
-# 3. Configure environment variables in Vercel dashboard
-```
-
-**Vercel Environment Variables:**
-```
-VITE_FIREBASE_API_KEY=xxx
-VITE_FIREBASE_AUTH_DOMAIN=xxx
-VITE_FIREBASE_PROJECT_ID=xxx
-VITE_FIREBASE_STORAGE_BUCKET=xxx
-VITE_FIREBASE_MESSAGING_SENDER_ID=xxx
-VITE_FIREBASE_APP_ID=xxx
-VITE_API_URL=https://your-backend-url.com
-```
-
-#### **Backend to Railway:**
-```bash
-# 1. Connect GitHub repo to Railway
-# 2. Set root directory to: backend/
-# 3. Set build command: npm install
-# 4. Set start command: node server.js
-# 5. Add environment variables
-```
-
-**Railway Environment Variables:**
-```env
-PORT=5000
-NODE_ENV=production
-FIREBASE_PROJECT_ID=xxx
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-FIREBASE_CLIENT_EMAIL=xxx
-JWT_SECRET=xxx
-FRONTEND_URL=https://your-frontend-url.vercel.app
-```
-
----
-
-### **Option 3: Traditional VPS (DigitalOcean, AWS EC2, etc.)**
-
-**Best for:** Full control, custom configuration
-
-#### **Server Setup:**
-```bash
-# 1. Update system
-sudo apt update && sudo apt upgrade -y
-
-# 2. Install Node.js 18
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt install -y nodejs
-
-# 3. Install PM2 (Process Manager)
-sudo npm install -g pm2
-
-# 4. Install Nginx
-sudo apt install -y nginx
-
-# 5. Clone repository
-git clone https://github.com/your-repo/digidiploma.git
-cd digidiploma
-
-# 6. Install dependencies
-npm install
-cd backend && npm install
-
-# 7. Build frontend
-cd .. && npm run build:prod
-
-# 8. Create .env file in backend/
-cd backend
-nano .env
-# Add all environment variables
-
-# 9. Start backend with PM2
-pm2 start server.js --name digidiploma-api
-pm2 startup
-pm2 save
-
-# 10. Configure Nginx
-sudo nano /etc/nginx/sites-available/digidiploma
-```
-
-**Nginx Configuration:**
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    # Frontend (React App)
-    location / {
-        root /path/to/digidiploma/dist;
-        try_files $uri $uri/ /index.html;
-        add_header Cache-Control "no-cache";
-    }
-
-    # API Proxy
-    location /api {
-        proxy_pass http://localhost:5000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-
-    # WebSocket Support
-    location /ws {
-        proxy_pass http://localhost:5000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_read_timeout 86400;
-    }
-
-    # Static files
-    location /uploads {
-        proxy_pass http://localhost:5000;
-    }
-}
-
-# Enable SSL with Let's Encrypt
-sudo certbot --nginx -d your-domain.com
-```
-
----
-
-## 🔧 Environment Variables Setup
-
-### **Backend `.env` File:**
-```env
-# Firebase Configuration
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_PRIVATE_KEY_ID=your-private-key-id
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY\n-----END PRIVATE KEY-----\n"
-FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-project-id.iam.gserviceaccount.com
-FIREBASE_CLIENT_ID=your-client-id
-FIREBASE_CLIENT_CERT_URL=https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-xxxxx%40your-project-id.iam.gserviceaccount.com
-
-# JWT Configuration
-JWT_SECRET=your-super-secure-jwt-secret-key-at-least-32-characters-long
-
-# Server Configuration
-PORT=5000
-NODE_ENV=production
-FRONTEND_URL=https://your-frontend-domain.com
-
-# CORS Configuration
-CORS_ORIGIN=https://your-frontend-domain.com
-
-# Stripe (Optional - for payments)
-STRIPE_SECRET_KEY=sk_live_your_stripe_secret_key
-STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
-
-# Email (Optional - for notifications)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
-```
-
-### **Frontend Environment Variables:**
-Create `.env.production` in root:
-```env
-VITE_FIREBASE_API_KEY=your-firebase-api-key
-VITE_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your-project-id
-VITE_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
-VITE_FIREBASE_APP_ID=your-app-id
-VITE_API_URL=https://your-backend-domain.com
-VITE_WS_URL=wss://your-backend-domain.com
-```
-
----
-
-## 🔄 Real-Time Configuration
-
-### **WebSocket Setup:**
-
-The project uses WebSocket for real-time features. Ensure your deployment supports WebSocket:
-
-1. **Update Frontend WebSocket URL:**
-   ```typescript
-   // src/hooks/useWebSocket.ts
-   const wsUrl = import.meta.env.VITE_WS_URL || 
-     `ws://localhost:5000`; // Development
-     // `wss://your-backend-domain.com`; // Production
+1. **Push to GitHub:**
+   ```bash
+   git add .
+   git commit -m "Prepare for deployment"
+   git push origin main
    ```
 
-2. **Backend WebSocket Server:**
-   - Already configured in `backend/websocket.js`
-   - Runs on same port as Express server (5000)
-   - Handles authentication via JWT tokens
+2. **Ensure `.env` is in `.gitignore`:**
+   - Check that `.env` files are not committed to Git
+   - Vercel will use environment variables from their dashboard
 
-3. **Nginx WebSocket Configuration:**
-   ```nginx
-   location /ws {
-       proxy_pass http://localhost:5000;
-       proxy_http_version 1.1;
-       proxy_set_header Upgrade $http_upgrade;
-       proxy_set_header Connection "upgrade";
-   }
+### Step 2: Deploy to Vercel
+
+1. **Go to [Vercel Dashboard](https://vercel.com/dashboard)**
+   - Sign up/Login with GitHub
+
+2. **Import Your Project:**
+   - Click "Add New Project"
+   - Select your GitHub repository
+   - Vercel will auto-detect it's a Vite/React project
+
+3. **Configure Build Settings:**
+   - **Framework Preset:** Vite
+   - **Root Directory:** `./` (root)
+   - **Build Command:** `npm run build`
+   - **Output Directory:** `dist`
+   - **Install Command:** `npm install`
+
+4. **Environment Variables:**
+   - Go to Project Settings → Environment Variables
+   - Add the following (you'll update these after backend is deployed):
+
+   ```
+   VITE_WS_URL=wss://your-backend.onrender.com
+   VITE_RAZORPAY_KEY_ID=rzp_live_your_key_id
    ```
 
+   **Note:** Update `VITE_WS_URL` after your backend is deployed on Render.
+
+5. **Update vercel.json:**
+   - Edit `vercel.json` in your project root
+   - Replace `your-backend-domain.com` with your Render backend URL
+   - Example: `https://digidiploma-backend.onrender.com`
+
+6. **Deploy:**
+   - Click "Deploy"
+   - Wait for build to complete (2-5 minutes)
+   - Your site will be live at `your-project.vercel.app`
+
+### Step 3: Note Your Vercel URL
+
+- After deployment, copy your Vercel URL
+- Example: `https://digidiploma.vercel.app`
+- You'll need this for backend CORS configuration
+
 ---
 
-## 📦 Firebase Setup Steps
+## 🖥️ Backend Deployment (Render)
 
-### **1. Create Firebase Project:**
-```bash
-# Login to Firebase
-firebase login
+### Step 1: Create Render Account
 
-# Create project
-firebase projects:create digidiploma-prod
+1. **Go to [Render Dashboard](https://render.com)**
+   - Sign up/Login with GitHub
 
-# Initialize Firebase
-firebase init
+### Step 2: Create Web Service
+
+1. **Click "New +" → "Web Service"**
+
+2. **Connect Repository:**
+   - Select your GitHub repository
+   - Click "Connect"
+
+3. **Configure Service:**
+   - **Name:** `digidiploma-backend` (or any name you prefer)
+   - **Region:** Choose closest to your users (e.g., Singapore, US East)
+   - **Branch:** `main` (or your main branch)
+   - **Root Directory:** `backend`
+   - **Runtime:** `Node`
+   - **Build Command:** `npm install`
+   - **Start Command:** `node server.js`
+   - **Instance Type:** 
+     - **Free:** 512 MB RAM (good for testing)
+     - **Starter:** $7/month (recommended for production)
+
+4. **Environment Variables:**
+   - Click "Add Environment Variable" for each:
+
+   ```env
+   # Server Configuration
+   PORT=10000
+   NODE_ENV=production
+   FRONTEND_URL=https://your-frontend.vercel.app
+
+   # MongoDB Atlas
+   MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/digidiploma?retryWrites=true&w=majority
+
+   # JWT Secret (generate a strong random string)
+   JWT_SECRET=your-super-secure-jwt-secret-key-at-least-32-characters-long
+
+   # Razorpay (Use LIVE keys for production)
+   RAZORPAY_KEY_ID=rzp_live_your_live_key_id
+   RAZORPAY_KEY_SECRET=your_live_key_secret
+   RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
+
+   # Cloudflare R2 Storage
+   STORAGE_DRIVER=r2
+   R2_ACCESS_KEY_ID=your-r2-access-key-id
+   R2_SECRET_ACCESS_KEY=your-r2-secret-access-key
+   R2_ACCOUNT_ID=your-r2-account-id
+   R2_BUCKET_NAME=digidiploma
+
+   # Email Configuration (SMTP)
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=your-email@gmail.com
+   SMTP_PASS=your-app-password
+   SMTP_FROM=your-email@gmail.com
+   SMTP_SECURE=false
+
+   # Admin Credentials
+   ADMIN_EMAIL=admin@eduportal.com
+   ADMIN_PASSWORD=your-secure-admin-password
+   ADMIN_ALERT_EMAIL=digidiploma06@gmail.com
+   ```
+
+   **Important:**
+   - Replace `your-frontend.vercel.app` with your actual Vercel URL
+   - Replace all placeholder values with your actual credentials
+
+5. **Create Service:**
+   - Click "Create Web Service"
+   - Render will start building and deploying (5-10 minutes)
+
+### Step 3: Get Your Backend URL
+
+1. **After deployment completes:**
+   - Your backend will be at: `https://digidiploma-backend.onrender.com`
+   - Copy this URL
+
+2. **Update Frontend (Vercel):**
+   - Go back to Vercel Dashboard
+   - Project Settings → Environment Variables
+   - Update `VITE_WS_URL` to: `wss://digidiploma-backend.onrender.com`
+   - Update `vercel.json` with your Render backend URL
+   - Redeploy frontend (or wait for auto-deploy)
+
+### Step 4: Configure Render Settings
+
+1. **Auto-Deploy:**
+   - Enabled by default
+   - Every push to `main` branch will auto-deploy
+
+2. **Health Check:**
+   - Render automatically checks if your service is running
+   - Ensure your backend has a health check endpoint or root route
+
+3. **Free Tier Limitations:**
+   - Service spins down after 15 minutes of inactivity
+   - First request after spin-down takes ~30 seconds
+   - Consider upgrading to Starter ($7/month) for production
+
+---
+
+## 🌍 Domain Setup (Hostinger)
+
+### Step 1: Purchase Domain (if not done)
+
+1. **Go to [Hostinger](https://www.hostinger.com)**
+2. **Search and purchase domain:** `digidiploma.com` (or your preferred domain)
+3. **Complete purchase**
+
+### Step 2: Configure DNS for Frontend (Vercel)
+
+1. **In Vercel Dashboard:**
+   - Go to your project → Settings → Domains
+   - Click "Add Domain"
+   - Enter your domain: `digidiploma.com`
+   - Vercel will show DNS records needed
+
+2. **In Hostinger DNS Settings:**
+   - Go to Hostinger → Domains → Your Domain → DNS / Name Servers
+   - Click "Manage DNS Records"
+
+3. **Add DNS Records:**
+   - **For Root Domain (`digidiploma.com`):**
+     ```
+     Type: A
+     Name: @
+     Value: 76.76.21.21
+     TTL: 3600
+     ```
+
+   - **For WWW (`www.digidiploma.com`):**
+     ```
+     Type: CNAME
+     Name: www
+     Value: cname.vercel-dns.com
+     TTL: 3600
+     ```
+
+4. **Wait for DNS Propagation:**
+   - Usually takes 5-30 minutes
+   - Can take up to 48 hours (rare)
+
+5. **Verify in Vercel:**
+   - Vercel will automatically detect when DNS is configured
+   - Your site will be accessible at `https://digidiploma.com`
+
+### Step 3: Configure DNS for Backend (Render)
+
+1. **In Render Dashboard:**
+   - Go to your Web Service → Settings → Custom Domains
+   - Click "Add Custom Domain"
+   - Enter: `api.digidiploma.com` (or `backend.digidiploma.com`)
+
+2. **Render will show DNS records:**
+   - Copy the CNAME record shown
+
+3. **In Hostinger DNS Settings:**
+   - Add CNAME record:
+     ```
+     Type: CNAME
+     Name: api (or backend)
+     Value: [Render provides this - something like: digidiploma-backend.onrender.com]
+     TTL: 3600
+     ```
+
+4. **Wait for DNS Propagation:**
+   - Usually 5-30 minutes
+
+5. **SSL Certificate:**
+   - Render automatically provisions SSL certificate
+   - Wait for "Certificate Provisioned" status
+
+6. **Update Environment Variables:**
+   - Update `FRONTEND_URL` in Render to: `https://digidiploma.com`
+   - Update `VITE_WS_URL` in Vercel to: `wss://api.digidiploma.com`
+   - Update `vercel.json` with: `https://api.digidiploma.com`
+
+---
+
+## 🔐 Environment Variables Setup
+
+### Frontend (Vercel)
+
+Go to Vercel Dashboard → Your Project → Settings → Environment Variables
+
+```env
+VITE_WS_URL=wss://api.digidiploma.com
+VITE_RAZORPAY_KEY_ID=rzp_live_your_live_key_id
 ```
 
-### **2. Enable Firebase Services:**
-- ✅ Firestore Database
-- ✅ Authentication (Email/Password)
-- ✅ Cloud Storage
-- ✅ Cloud Messaging
-- ✅ Hosting
-- ✅ Analytics
+**Important:** 
+- Use `VITE_` prefix for Vite environment variables
+- Update after backend domain is configured
+- Redeploy after updating variables
 
-### **3. Get Firebase Admin SDK Credentials:**
-1. Go to Firebase Console → Project Settings → Service Accounts
-2. Click "Generate New Private Key"
-3. Download JSON file
-4. Extract values to `.env` file
+### Backend (Render)
 
-### **4. Configure Firestore Security Rules:**
-```javascript
-// firestore.rules
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    match /materials/{materialId} {
-      allow read: if true;
-      allow write: if request.auth != null && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userType == 'admin';
-    }
-    
-    match /courses/{courseId} {
-      allow read: if true;
-      allow write: if request.auth != null && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userType == 'admin';
-    }
-    
-    match /projects/{projectId} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-  }
-}
-```
+Go to Render Dashboard → Your Service → Environment
 
-### **5. Configure Storage Rules:**
-```javascript
-// storage.rules
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /materials/{allPaths=**} {
-      allow read: if true;
-      allow write: if request.auth != null && 
-        request.auth.token.userType == 'admin';
-    }
-    
-    match /uploads/{allPaths=**} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-  }
-}
-```
+All variables listed in Step 2 of Backend Deployment section above.
+
+**Critical Variables:**
+- `FRONTEND_URL`: Your Vercel domain (e.g., `https://digidiploma.com`)
+- `PORT`: Set to `10000` (Render requirement)
+- `MONGODB_URI`: Your MongoDB Atlas connection string
+- `RAZORPAY_KEY_ID` & `RAZORPAY_KEY_SECRET`: Your Razorpay LIVE keys
 
 ---
 
-## 🔐 Security Checklist
+## 🗄️ Database Configuration (MongoDB Atlas)
 
-- [ ] Set strong `JWT_SECRET` (32+ characters)
-- [ ] Enable HTTPS/SSL certificates
-- [ ] Configure CORS properly
-- [ ] Set up Firestore security rules
-- [ ] Configure Storage security rules
-- [ ] Enable rate limiting
-- [ ] Use environment variables (never commit secrets)
-- [ ] Enable Firebase App Check
-- [ ] Set up proper error logging
-- [ ] Configure backup strategy
+### Step 1: Create MongoDB Atlas Account
 
----
+1. **Go to [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)**
+   - Sign up for free account
 
-## 📊 Monitoring & Maintenance
+2. **Create Free Cluster:**
+   - Click "Build a Database"
+   - Choose "M0 FREE" tier
+   - Select region closest to your Render region
+   - Click "Create"
 
-### **1. Firebase Console:**
-- Monitor Firestore usage
-- Check authentication logs
-- Review storage usage
-- Monitor Cloud Functions (if used)
+### Step 2: Configure Network Access
 
-### **2. Application Monitoring:**
-```bash
-# PM2 Monitoring (if using VPS)
-pm2 monit
+1. **Go to Network Access:**
+   - Click "Add IP Address"
+   - Click "Allow Access from Anywhere" (adds `0.0.0.0/0`)
+   - Or add Render's IP ranges (check Render docs)
 
-# Check logs
-pm2 logs digidiploma-api
+### Step 3: Create Database User
 
-# Restart on crash
-pm2 start server.js --name digidiploma-api --watch
-```
+1. **Go to Database Access:**
+   - Click "Add New Database User"
+   - Choose "Password" authentication
+   - Username: `digidiploma` (or your choice)
+   - Password: Generate secure password (save it!)
+   - Database User Privileges: "Atlas admin" (or "Read and write to any database")
+   - Click "Add User"
 
-### **3. Uptime Monitoring:**
-- Use UptimeRobot or Pingdom
-- Monitor API endpoints: `/api/health`
-- Set up alerts for downtime
+### Step 4: Get Connection String
 
----
+1. **Go to Clusters:**
+   - Click "Connect" on your cluster
+   - Choose "Connect your application"
+   - Copy the connection string
+   - Example: `mongodb+srv://digidiploma:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority`
 
-## 🚨 Troubleshooting
+2. **Update Connection String:**
+   - Replace `<password>` with your database user password
+   - Add database name: `?retryWrites=true&w=majority` → `digidiploma?retryWrites=true&w=majority`
+   - Final: `mongodb+srv://digidiploma:yourpassword@cluster0.xxxxx.mongodb.net/digidiploma?retryWrites=true&w=majority`
 
-### **WebSocket Not Connecting:**
-1. Check firewall allows WebSocket connections
-2. Verify Nginx/proxy configuration
-3. Check backend logs for WebSocket errors
-4. Ensure JWT tokens are valid
-
-### **Firebase Connection Issues:**
-1. Verify Firebase credentials in `.env`
-2. Check Firestore security rules
-3. Verify Firebase project ID matches
-4. Check Firebase quotas/limits
-
-### **File Upload Issues:**
-1. Check Firebase Storage rules
-2. Verify file size limits
-3. Check backend `/uploads` directory permissions
-4. Verify CORS configuration
-
----
-
-## 📈 Performance Optimization
-
-### **Frontend:**
-- Enable gzip compression
-- Use CDN for static assets
-- Implement lazy loading
-- Optimize images (WebP format)
-- Enable service worker caching
-
-### **Backend:**
-- Use Redis for caching (optional)
-- Implement database indexing
-- Use connection pooling
-- Monitor API response times
-- Optimize Firestore queries
-
----
-
-## 🎯 Quick Start Deployment (Recommended: Railway + Vercel)
-
-### **Step 1: Deploy Backend to Railway**
-1. Go to [railway.app](https://railway.app)
-2. New Project → Deploy from GitHub
-3. Select your repository
-4. Set root directory: `backend`
-5. Add environment variables
-6. Deploy!
-
-### **Step 2: Deploy Frontend to Vercel**
-1. Go to [vercel.com](https://vercel.com)
-2. Import GitHub repository
-3. Set build command: `npm run build:prod`
-4. Set output directory: `dist`
-5. Add environment variables
-6. Deploy!
-
-### **Step 3: Update Frontend API URL**
-Update `VITE_API_URL` in Vercel to point to Railway backend URL.
+3. **Add to Render Environment Variables:**
+   - Variable: `MONGODB_URI`
+   - Value: Your complete connection string
 
 ---
 
 ## ✅ Post-Deployment Checklist
 
-- [ ] Test user registration
-- [ ] Test user login
-- [ ] Test file uploads
-- [ ] Test real-time notifications
-- [ ] Test WebSocket connections
-- [ ] Test payment processing (if enabled)
-- [ ] Verify SSL certificate
-- [ ] Test on mobile devices
-- [ ] Check Firebase quotas
-- [ ] Set up monitoring alerts
+### Frontend (Vercel)
+
+- [ ] Site is accessible at Vercel URL
+- [ ] Custom domain is configured and working
+- [ ] Environment variables are set
+- [ ] `vercel.json` is updated with backend URL
+- [ ] API calls are working (check browser console)
+- [ ] Razorpay payments are working (test mode first)
+- [ ] All pages load correctly
+- [ ] Images and assets load properly
+
+### Backend (Render)
+
+- [ ] Service is deployed and running
+- [ ] Backend URL is accessible
+- [ ] Custom domain is configured (if using)
+- [ ] SSL certificate is provisioned
+- [ ] Environment variables are set correctly
+- [ ] MongoDB connection is working (check logs)
+- [ ] API endpoints are responding
+- [ ] File uploads are working
+- [ ] Razorpay webhook is configured (if using)
+
+### Domain (Hostinger)
+
+- [ ] DNS records are added correctly
+- [ ] DNS propagation is complete (check with `nslookup` or online tools)
+- [ ] Frontend domain points to Vercel
+- [ ] Backend domain points to Render
+- [ ] SSL certificates are active (HTTPS working)
+
+### Testing
+
+- [ ] User registration works
+- [ ] User login works
+- [ ] Admin login works
+- [ ] Material upload works
+- [ ] Material download works
+- [ ] Payment flow works (test with Razorpay test mode first)
+- [ ] Email OTP works
+- [ ] Notifications work
+- [ ] WebSocket connections work
 
 ---
 
-**🎉 Your DigiDiploma platform is now live with full real-time functionality!**
+## 🔧 Troubleshooting
 
-For support, check:
-- Firebase Console logs
-- Backend server logs
-- Browser console for frontend errors
-- Network tab for API issues
+### Frontend Issues
 
+**Problem: API calls failing (CORS errors)**
+- Check `FRONTEND_URL` in Render environment variables matches your Vercel domain
+- Ensure it includes `https://` protocol
+- Check browser console for specific CORS error
+- Verify `vercel.json` has correct backend URL
+
+**Problem: Build fails on Vercel**
+- Check build logs in Vercel dashboard
+- Ensure all dependencies are in `package.json`
+- Check Node.js version compatibility
+- Look for TypeScript or linting errors
+
+**Problem: Domain not working**
+- Wait for DNS propagation (can take up to 48 hours)
+- Check DNS records in Hostinger match Vercel requirements
+- Verify domain is added in Vercel dashboard
+- Use online DNS checker tools
+
+### Backend Issues
+
+**Problem: Backend not starting on Render**
+- Check Render logs: Service → Logs
+- Verify all environment variables are set
+- Check `PORT` is set to `10000`
+- Ensure `server.js` is in `backend` directory
+- Verify `Start Command` is `node server.js`
+
+**Problem: MongoDB connection fails**
+- Verify `MONGODB_URI` is correct in Render environment variables
+- Check MongoDB Atlas network access allows all IPs (`0.0.0.0/0`)
+- Verify database user password is correct
+- Check MongoDB Atlas logs
+
+**Problem: Service spins down (Free tier)**
+- Free tier spins down after 15 minutes of inactivity
+- First request after spin-down takes ~30 seconds
+- Consider upgrading to Starter plan ($7/month) for production
+- Or use a ping service to keep it alive (not recommended)
+
+**Problem: Custom domain not working**
+- Wait for DNS propagation
+- Verify CNAME record in Hostinger points to Render URL
+- Check SSL certificate status in Render dashboard
+- Ensure domain is added in Render → Settings → Custom Domains
+
+### Payment Issues
+
+**Problem: Razorpay not working**
+- Verify you're using LIVE keys (not test keys) in production
+- Check `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are set in Render
+- Ensure webhook URL is configured in Razorpay dashboard:
+  - Webhook URL: `https://api.digidiploma.com/api/payments/webhook`
+  - Events: `payment.captured`, `payment_link.paid`
+- Check Render logs for Razorpay errors
+
+---
+
+## ⚙️ Important Configuration Notes
+
+### CORS Configuration
+
+The backend automatically uses `FRONTEND_URL` environment variable for CORS.
+
+1. **In Render Environment Variables:**
+   ```env
+   FRONTEND_URL=https://digidiploma.com
+   ```
+
+2. **Backend `server.js` uses:**
+   ```javascript
+   app.use(cors({
+     origin: process.env.FRONTEND_URL || 'http://localhost:8080',
+     // ... other options
+   }));
+   ```
+
+3. **After updating `FRONTEND_URL`:**
+   - Render will auto-restart the service
+   - Or manually restart: Service → Manual Deploy → Clear build cache & deploy
+
+### Vercel Configuration
+
+1. **Update `vercel.json`:**
+   - Replace `your-backend-domain.com` with your Render backend URL
+   - Example: `https://api.digidiploma.com` or `https://digidiploma-backend.onrender.com`
+   - This file proxies `/api/*` requests to your backend
+
+2. **WebSocket Connections:**
+   - Set `VITE_WS_URL` in Vercel environment variables
+   - Format: `wss://api.digidiploma.com` (use `wss://` for secure WebSocket)
+   - WebSocket will auto-detect production vs development
+
+### Render Free Tier Considerations
+
+- **Spin-down:** Service sleeps after 15 min inactivity
+- **Cold start:** First request takes ~30 seconds after spin-down
+- **Solution:** Upgrade to Starter plan ($7/month) for production
+- **Alternative:** Use a ping service (not recommended, against ToS)
+
+---
+
+## 🔒 Security Checklist
+
+Before going live:
+
+- [ ] Change default admin password
+- [ ] Use strong JWT_SECRET (32+ characters, random)
+- [ ] Use Razorpay LIVE keys (not test keys)
+- [ ] Enable HTTPS (SSL) on both frontend and backend (automatic)
+- [ ] CORS is configured correctly (`FRONTEND_URL` in Render)
+- [ ] MongoDB Atlas network access is configured
+- [ ] All environment variables are set (no defaults in production)
+- [ ] Regular backups of MongoDB (configure in MongoDB Atlas)
+- [ ] Monitor logs for errors (Render dashboard)
+- [ ] Test all payment flows before going live
+
+---
+
+## 📝 Deployment Summary
+
+**Your Setup:**
+- **Frontend:** `https://digidiploma.com` (Vercel)
+- **Backend:** `https://api.digidiploma.com` (Render)
+- **Database:** MongoDB Atlas (Free tier)
+- **Domain:** Hostinger DNS management
+
+**Cost Estimate:**
+- Vercel: **Free** (or $20/month for Pro)
+- Render: **Free** (or $7/month for Starter - recommended)
+- MongoDB Atlas: **Free** (M0 tier)
+- Hostinger Domain: **~$10-15/year**
+- **Total:** ~$10-15/year (domain only) or ~$84-180/year (with Render Starter)
+
+---
+
+## 📞 Support
+
+If you encounter issues:
+
+1. **Check Render logs:** Service → Logs tab
+2. **Check Vercel logs:** Project → Deployments → Click deployment → View logs
+3. **Check MongoDB Atlas logs:** Clusters → Metrics
+4. **Review environment variables** in both Vercel and Render
+5. **Test API endpoints** manually with Postman/curl
+6. **Check DNS propagation:** Use online DNS checker tools
+
+---
+
+## 🎉 Deployment Complete!
+
+Once everything is deployed and tested:
+
+1. ✅ Update Razorpay webhook URL to production
+2. ✅ Switch from test keys to live keys
+3. ✅ Test all features thoroughly
+4. ✅ Monitor for any errors
+5. ✅ Set up regular MongoDB backups
+6. ✅ Consider upgrading Render to Starter plan for production
+
+Your DigiDiploma platform is now live! 🚀
+
+**Access:**
+- Frontend: `https://digidiploma.com`
+- Backend API: `https://api.digidiploma.com`
+- Admin: `https://digidiploma.com/admin` (or your admin route)

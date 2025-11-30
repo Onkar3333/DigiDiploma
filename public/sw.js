@@ -1,7 +1,7 @@
 // DigiDiploma Service Worker
-const CACHE_NAME = 'digidiploma-v1.0.0';
-const STATIC_CACHE = 'digidiploma-static-v1.0.0';
-const DYNAMIC_CACHE = 'digidiploma-dynamic-v1.0.0';
+const CACHE_NAME = 'digidiploma-v1.0.1';
+const STATIC_CACHE = 'digidiploma-static-v1.0.1';
+const DYNAMIC_CACHE = 'digidiploma-dynamic-v1.0.1';
 
 // Files to cache for offline functionality
 const STATIC_FILES = [
@@ -91,6 +91,36 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
+// Helper function to check if a response is cacheable
+function isCacheable(response, request) {
+  // Don't cache partial responses (206)
+  if (response.status === 206) {
+    return false;
+  }
+  
+  // Don't cache opaque responses (CORS issues)
+  if (response.type === 'opaque') {
+    return false;
+  }
+  
+  // Don't cache if no-store header is present
+  if (response.headers.get('cache-control')?.includes('no-store')) {
+    return false;
+  }
+  
+  // Don't cache range requests
+  if (request.headers.get('range')) {
+    return false;
+  }
+  
+  // Only cache successful responses
+  if (!response.ok) {
+    return false;
+  }
+  
+  return true;
+}
+
 // Cache first strategy - check cache first, then network
 async function cacheFirst(request) {
   try {
@@ -100,9 +130,11 @@ async function cacheFirst(request) {
     }
     
     const networkResponse = await fetch(request);
-    if (networkResponse.ok) {
+    if (isCacheable(networkResponse, request)) {
       const cache = await caches.open(STATIC_CACHE);
-      cache.put(request, networkResponse.clone());
+      cache.put(request, networkResponse.clone()).catch((error) => {
+        console.warn('Failed to cache response:', error);
+      });
     }
     return networkResponse;
   } catch (error) {
@@ -119,9 +151,12 @@ async function networkFirst(request) {
   try {
     const networkResponse = await fetch(request);
     
-    if (networkResponse.ok) {
+    // Only cache if the response is cacheable
+    if (isCacheable(networkResponse, request)) {
       const cache = await caches.open(DYNAMIC_CACHE);
-      cache.put(request, networkResponse.clone());
+      cache.put(request, networkResponse.clone()).catch((error) => {
+        console.warn('Failed to cache response:', error);
+      });
     }
     
     return networkResponse;

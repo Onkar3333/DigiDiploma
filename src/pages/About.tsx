@@ -322,7 +322,7 @@ const About = () => {
               roleColor="text-green-600"
             />
             <TeamMemberCard
-              name="Soham Gauraje"
+              name="Soham Gouraje"
               role="Technical Head"   
               description="Enhancing DigiDiploma’s impact through strong content and dynamic engagement."
               imagePath="/team/soham-gauraje.jpeg"

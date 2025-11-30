@@ -27,6 +27,7 @@ import Internship from "./pages/Internship";
 import Projects from "./pages/Projects";
 import Profile from "./pages/Profile";
 import StudentNotices from "./pages/StudentNotices";
+import Courses from "./pages/Courses";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -100,6 +101,14 @@ const App = () => {
               element={
                 <ProtectedRoute requiredUserType="student">
                   <StudentNotices />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/courses" 
+              element={
+                <ProtectedRoute requiredUserType="student">
+                  <Courses />
                 </ProtectedRoute>
               } 
             />

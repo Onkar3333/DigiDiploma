@@ -33,6 +33,61 @@ const ADMIN_SUBJECT_OPTIONS = [
   "Other"
 ];
 
+// Utility function to convert R2 URLs to proxy URLs
+const getProxyUrl = (url: string | null | undefined): string => {
+  if (!url) return '';
+  
+  // Check if it's already a proxy URL
+  if (url.includes('/api/materials/proxy/')) {
+    return url;
+  }
+  
+  // Check if it's an R2 URL
+  if (url.includes('r2.cloudflarestorage.com')) {
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      
+      // Extract the key from pathname (e.g., /digidiploma/materials/file.jpg -> materials/file.jpg)
+      const pathParts = pathname.split('/').filter(Boolean);
+      
+      let key = '';
+      if (pathParts.length > 0) {
+        // Find 'materials' in the path and get everything after it
+        const materialsIndex = pathParts.findIndex(p => p === 'materials');
+        if (materialsIndex !== -1) {
+          // Get everything from 'materials' onwards
+          key = pathParts.slice(materialsIndex).join('/');
+        } else {
+          // If no 'materials' found, check if first part is bucket name
+          if (pathParts[0] === 'digidiploma' && pathParts.length > 1) {
+            // Skip bucket name, use rest
+            key = pathParts.slice(1).join('/');
+            // If it doesn't start with 'materials/', add it
+            if (!key.startsWith('materials/')) {
+              key = 'materials/' + key;
+            }
+          } else {
+            // Use all parts, but ensure it starts with 'materials/'
+            key = pathParts.join('/');
+            if (!key.startsWith('materials/')) {
+              key = 'materials/' + key;
+            }
+          }
+        }
+      }
+      
+      if (key) {
+        return `/api/materials/proxy/r2/${encodeURIComponent(key)}`;
+      }
+    } catch (e) {
+      console.error('Error parsing R2 URL:', e, url);
+    }
+  }
+  
+  return url;
+};
+
 interface Project {
   id: string;
   title: string;
@@ -68,6 +123,7 @@ interface ProjectRequest {
   deadline?: string;
   notes?: string;
   status: string;
+  workflowStatus?: string;
   createdAt: string;
 }
 
@@ -126,8 +182,14 @@ const AdminProjectsManager = () => {
       const res = await fetch('/api/projects/requests/all', {
         headers: { ...authService.getAuthHeaders() }
       });
+      if (!res.ok) {
+        console.error('Failed to fetch project requests:', res.status, res.statusText);
+        setRequests([]);
+        return;
+      }
       const data = await res.json();
-      setRequests(data || []);
+      // Ensure data is an array
+      setRequests(Array.isArray(data) ? data : []);
     } catch (err) {
       toast({ title: "Failed to load requests", variant: "destructive" });
     }
@@ -301,7 +363,7 @@ const AdminProjectsManager = () => {
     { label: 'Pending', value: pendingProjects.length, accent: 'text-amber-600 bg-amber-50' },
     { label: 'Approved', value: approvedProjects.length, accent: 'text-emerald-600 bg-emerald-50' },
     { label: 'Official', value: adminProjects.length, accent: 'text-indigo-600 bg-indigo-50' },
-    { label: 'Requests', value: requests.length, accent: 'text-blue-600 bg-blue-50' }
+    { label: 'Requests', value: Array.isArray(requests) ? requests.length : 0, accent: 'text-blue-600 bg-blue-50' }
   ];
 
   return (
@@ -337,17 +399,28 @@ const AdminProjectsManager = () => {
             Official ({adminProjects.length})
           </TabsTrigger>
           <TabsTrigger value="requests">
-            Requests ({requests.filter(r => (r.workflowStatus || r.status) === 'pending').length})
+            Requests ({Array.isArray(requests) ? requests.filter(r => (r.workflowStatus || r.status) === 'pending').length : 0})
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="space-y-4">
           {pendingProjects.map(project => {
-            const previewImage = project.coverPhoto || project.imageUrls?.[0];
+            const previewImage = getProxyUrl(project.coverPhoto || project.imageUrls?.[0]);
             return (
               <Card key={project.id} className="overflow-hidden">
                 {previewImage && (
-                  <img src={previewImage} alt={project.title} className="h-40 w-full object-cover" />
+                  <img 
+                    src={previewImage} 
+                    alt={project.title} 
+                    className="h-40 w-full object-cover"
+                    onError={(e) => {
+                      // Fallback: try original URL if proxy fails
+                      const originalUrl = project.coverPhoto || project.imageUrls?.[0];
+                      if (originalUrl && originalUrl !== previewImage) {
+                        e.currentTarget.src = originalUrl;
+                      }
+                    }}
+                  />
                 )}
                 <CardHeader>
                   <div className="flex justify-between items-start">
@@ -384,10 +457,23 @@ const AdminProjectsManager = () => {
         <TabsContent value="approved" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {approvedProjects.map(project => {
-              const previewImage = project.coverPhoto || project.imageUrls?.[0];
+              const previewImage = getProxyUrl(project.coverPhoto || project.imageUrls?.[0]);
               return (
                 <Card key={project.id} className="overflow-hidden">
-                  {previewImage && <img src={previewImage} alt={project.title} className="h-40 w-full object-cover" />}
+                  {previewImage && (
+                    <img 
+                      src={previewImage} 
+                      alt={project.title} 
+                      className="h-40 w-full object-cover"
+                      onError={(e) => {
+                        // Fallback: try original URL if proxy fails
+                        const originalUrl = project.coverPhoto || project.imageUrls?.[0];
+                        if (originalUrl && originalUrl !== previewImage) {
+                          e.currentTarget.src = originalUrl;
+                        }
+                      }}
+                    />
+                  )}
                   <CardHeader>
                     <CardTitle className="text-lg">{project.title}</CardTitle>
                     <p className="text-sm text-slate-600">By {project.studentName}</p>
@@ -418,10 +504,23 @@ const AdminProjectsManager = () => {
         <TabsContent value="official" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {adminProjects.map(project => {
-              const previewImage = project.coverPhoto || project.imageUrls?.[0];
+              const previewImage = getProxyUrl(project.coverPhoto || project.imageUrls?.[0]);
               return (
                 <Card key={project.id} className="overflow-hidden">
-                  {previewImage && <img src={previewImage} alt={project.title} className="h-40 w-full object-cover" />}
+                  {previewImage && (
+                    <img 
+                      src={previewImage} 
+                      alt={project.title} 
+                      className="h-40 w-full object-cover"
+                      onError={(e) => {
+                        // Fallback: try original URL if proxy fails
+                        const originalUrl = project.coverPhoto || project.imageUrls?.[0];
+                        if (originalUrl && originalUrl !== previewImage) {
+                          e.currentTarget.src = originalUrl;
+                        }
+                      }}
+                    />
+                  )}
                   <CardHeader className="flex items-center justify-between">
                     <div>
                       <CardTitle className="text-lg">{project.title}</CardTitle>
@@ -453,40 +552,43 @@ const AdminProjectsManager = () => {
         </TabsContent>
 
         <TabsContent value="requests" className="space-y-4">
-          {requests.map(request => (
-            <Card key={request.id}>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle>{request.projectIdea}</CardTitle>
-                    <p className="text-sm text-slate-600 mt-1">
-                      {request.name} ({request.email}) • {request.branch} • Sem {request.semester}
-                    </p>
+          {Array.isArray(requests) && requests.length > 0 ? (
+            requests.map(request => (
+              <Card key={request.id}>
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle>{request.projectIdea}</CardTitle>
+                      <p className="text-sm text-slate-600 mt-1">
+                        {request.name} ({request.email}) • {request.branch} • Sem {request.semester}
+                      </p>
+                    </div>
+                    <Badge variant={(request.workflowStatus || request.status) === 'accepted' ? 'default' : (request.workflowStatus || request.status) === 'rejected' ? 'destructive' : 'secondary'}>
+                      {request.workflowStatus || request.status}
+                    </Badge>
                   </div>
-                  <Badge variant={(request.workflowStatus || request.status) === 'accepted' ? 'default' : (request.workflowStatus || request.status) === 'rejected' ? 'destructive' : 'secondary'}>
-                    {request.workflowStatus || request.status}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm mb-2">{request.description}</p>
-                {request.requiredTools && <p className="text-sm text-slate-600">Tools: {request.requiredTools}</p>}
-                {request.deadline && <p className="text-sm text-slate-600">Deadline: {request.deadline}</p>}
-                <div className="flex gap-2 mt-4">
-                  <Button size="sm" onClick={() => updateRequestStatus(request.id, 'accepted')}>
-                    Accept
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => updateRequestStatus(request.id, 'under_review')}>
-                    Under Review
-                  </Button>
-                  <Button size="sm" variant="destructive" onClick={() => updateRequestStatus(request.id, 'rejected')}>
-                    Reject
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-          {requests.length === 0 && <p className="text-slate-500">No project requests</p>}
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm mb-2">{request.description}</p>
+                  {request.requiredTools && <p className="text-sm text-slate-600">Tools: {request.requiredTools}</p>}
+                  {request.deadline && <p className="text-sm text-slate-600">Deadline: {request.deadline}</p>}
+                  <div className="flex gap-2 mt-4">
+                    <Button size="sm" onClick={() => updateRequestStatus(request.id, 'accepted')}>
+                      Accept
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => updateRequestStatus(request.id, 'under_review')}>
+                      Under Review
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => updateRequestStatus(request.id, 'rejected')}>
+                      Reject
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <p className="text-slate-500">No project requests</p>
+          )}
         </TabsContent>
       </Tabs>
 

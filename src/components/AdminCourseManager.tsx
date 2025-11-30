@@ -165,7 +165,7 @@ const AdminCourseManager: React.FC = () => {
   }, [authenticatedFetch, filterBranch]);
 
   const fetchSemesters = useCallback(
-    async (branch: string) => {
+    async (branch: string, updateFormData = false) => {
       if (!branch) {
         setSemesters(DEFAULT_SEMESTERS);
         return;
@@ -176,8 +176,11 @@ const AdminCourseManager: React.FC = () => {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
             setSemesters(data);
-            setFilterSemester(String(data[0]));
-            setFormData((prev) => ({ ...prev, semester: String(data[0]) }));
+            // Only update filter/form data if explicitly requested
+            if (updateFormData) {
+              setFilterSemester(String(data[0]));
+              setFormData((prev) => ({ ...prev, semester: String(data[0]) }));
+            }
           } else {
             setSemesters(DEFAULT_SEMESTERS);
           }
@@ -197,27 +200,32 @@ const AdminCourseManager: React.FC = () => {
         return;
       }
       try {
+        console.log('🔍 Fetching subjects:', { branch, semester });
         const res = await authenticatedFetch(`/api/subjects?branch=${encodeURIComponent(branch)}&semester=${encodeURIComponent(semester)}`);
         if (res.ok) {
           const data = await res.json();
           const list = Array.isArray(data) ? data : [];
+          console.log('✅ Subjects fetched:', list.length, 'subjects for', branch, 'semester', semester);
+          if (list.length > 0) {
+            console.log('📋 Sample subjects:', list.slice(0, 3).map(s => ({ name: s.name, code: s.code })));
+          }
           setSubjects(list);
           const subjectNames = list.map((item) => item.name);
           const firstSubject = subjectNames[0] || "";
+          
+          // Only update filter data if not in form mode (check isFormOpen from state, not closure)
+          // We'll check this conditionally based on context
           if (!firstSubject) {
-            setFilterSubject(SUBJECT_ALL_VALUE);
+            // Only update filter if we're not in form mode
+            // This will be handled by the calling context
           }
-          if (
-            filterSubject !== SUBJECT_ALL_VALUE &&
-            filterSubject &&
-            !subjectNames.includes(filterSubject)
-          ) {
-            setFilterSubject(firstSubject || SUBJECT_ALL_VALUE);
-          }
-          if (!editingCourse && !formData.subject && firstSubject) {
-            setFormData((prev) => ({ ...prev, subject: firstSubject }));
-          }
+          
+          // Auto-select first subject in form if available and not editing
+          // This will be handled by the useEffect that calls fetchSubjects
         } else {
+          console.error('❌ Failed to fetch subjects:', res.status, res.statusText);
+          const errorData = await res.json().catch(() => ({}));
+          console.error('Error details:', errorData);
           setSubjects([]);
         }
       } catch (error) {
@@ -225,7 +233,7 @@ const AdminCourseManager: React.FC = () => {
         setSubjects([]);
       }
     },
-    [authenticatedFetch, formData.subject, editingCourse, filterSubject]
+    [authenticatedFetch, formData.subject, editingCourse, filterSubject, isFormOpen]
   );
 
   const fetchCourses = useCallback(async () => {
@@ -262,16 +270,47 @@ const AdminCourseManager: React.FC = () => {
   }, [fetchBranches]);
 
   useEffect(() => {
-    if (filterBranch) {
-      fetchSemesters(filterBranch);
+    if (filterBranch && !isFormOpen) {
+      // Only update filter semesters when form is not open
+      fetchSemesters(filterBranch, true);
+      // Reset semester and subject when branch changes
+      setFilterSemester("");
+      setFilterSubject(SUBJECT_ALL_VALUE);
+      setSubjects([]);
+    } else if (!filterBranch && !isFormOpen) {
+      setSemesters([]);
+      setSubjects([]);
     }
-  }, [filterBranch, fetchSemesters]);
+  }, [filterBranch, fetchSemesters, isFormOpen]);
 
   useEffect(() => {
-    if (filterBranch && filterSemester) {
+    if (filterBranch && filterSemester && !isFormOpen) {
+      // Only update filter subjects when form is not open
       fetchSubjects(filterBranch, filterSemester);
+      // Reset subject when semester changes
+      setFilterSubject(SUBJECT_ALL_VALUE);
+    } else if ((!filterBranch || !filterSemester) && !isFormOpen) {
+      setSubjects([]);
     }
-  }, [filterBranch, filterSemester, fetchSubjects]);
+  }, [filterBranch, filterSemester, fetchSubjects, isFormOpen]);
+
+  // Fetch semesters when formData.branch changes (for form dropdowns)
+  useEffect(() => {
+    if (isFormOpen && formData.branch) {
+      console.log('📚 Form useEffect: Fetching semesters for branch:', formData.branch);
+      fetchSemesters(formData.branch, false);
+    }
+  }, [formData.branch, isFormOpen, fetchSemesters]);
+
+  // Fetch subjects when formData.branch and formData.semester change (for form dropdowns)
+  useEffect(() => {
+    if (isFormOpen && formData.branch && formData.semester) {
+      console.log('📚 Form useEffect: Fetching subjects for branch:', formData.branch, 'semester:', formData.semester);
+      fetchSubjects(formData.branch, formData.semester);
+    } else if (isFormOpen && (!formData.branch || !formData.semester)) {
+      setSubjects([]);
+    }
+  }, [formData.branch, formData.semester, isFormOpen, fetchSubjects]);
 
   useEffect(() => {
     if (filterBranch && filterSemester) {
@@ -333,16 +372,28 @@ const AdminCourseManager: React.FC = () => {
   const handleEditCourse = (course: CourseRecord) => {
     setEditingCourse(course);
     setIsFormOpen(true);
+    const branch = course.branch || "";
+    const semester = String(course.semester ?? "");
     setFormData({
       title: course.title || "",
       description: course.description || "",
-      branch: course.branch || "",
-      semester: String(course.semester ?? ""),
+      branch: branch,
+      semester: semester,
       subject: course.subject || "",
       coverPhoto: course.coverPhoto || "",
       resourceUrl: course.resourceUrl || "",
       coverPhotoFile: null,
     });
+    // Fetch semesters and subjects for the course's branch and semester
+    if (branch) {
+      fetchSemesters(branch, false);
+      if (semester) {
+        // Use setTimeout to ensure formData is updated first
+        setTimeout(() => {
+          fetchSubjects(branch, semester);
+        }, 100);
+      }
+    }
   };
 
   const handleDeleteCourse = async (course: CourseRecord) => {
@@ -428,8 +479,237 @@ const AdminCourseManager: React.FC = () => {
     }
   };
 
+  const isAdmin = user?.userType === 'admin';
+
   return (
     <div className="space-y-8">
+      {/* Launch New Course Button at Top - Only for Admin */}
+      {isAdmin && (
+        <Card className="border border-slate-200 shadow-md">
+          <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <PlusCircle className="w-5 h-5 text-primary" />
+                {editingCourse ? "Update Course" : "Launch New Course"}
+              </CardTitle>
+              {editingCourse && (
+                <p className="text-xs text-muted-foreground">
+                  Editing <strong>{editingCourse.title}</strong>. Make changes below or{" "}
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="text-primary underline underline-offset-2"
+                  >
+                    cancel editing
+                  </button>
+                  .
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {isFormOpen && !editingCourse && (
+                <Button variant="ghost" size="sm" onClick={() => setIsFormOpen(false)}>
+                  Hide Form
+                </Button>
+              )}
+              {!isFormOpen && (
+                <Button size="sm" onClick={() => setIsFormOpen(true)}>
+                  Launch New Course
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          {isFormOpen && (
+            <CardContent>
+              <form className="space-y-4" onSubmit={handleSubmitCourse}>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">Branch *</Label>
+                    <Select 
+                      value={formData.branch} 
+                      onValueChange={(value) => {
+                        setFormData((prev) => ({ 
+                          ...prev, 
+                          branch: value,
+                          semester: "", // Reset semester when branch changes
+                          subject: "" // Reset subject when branch changes
+                        }));
+                        // Fetch semesters for the new branch (don't auto-update formData)
+                        console.log('📚 Form: Branch changed to:', value);
+                        fetchSemesters(value, false);
+                        // Clear subjects
+                        setSubjects([]);
+                      }}
+                    >
+                      <SelectTrigger className="mt-2 text-slate-900">
+                        <SelectValue placeholder="Select branch" />
+                      </SelectTrigger>
+                      <SelectContent className="text-slate-900">
+                        {branches.length > 0 ? (
+                          branches.map((branch) => (
+                            <SelectItem key={branch} value={branch}>
+                              {branch}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="px-2 py-1.5 text-sm text-slate-500">No branches available</div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Semester *</Label>
+                    <Select 
+                      value={formData.semester} 
+                      onValueChange={(value) => {
+                        const currentBranch = formData.branch;
+                        setFormData((prev) => ({ 
+                          ...prev, 
+                          semester: value,
+                          subject: "" // Reset subject when semester changes
+                        }));
+                        // Fetch subjects for the current branch and new semester
+                        if (currentBranch) {
+                          console.log('📚 Form: Fetching subjects for branch:', currentBranch, 'semester:', value);
+                          fetchSubjects(currentBranch, value);
+                        }
+                      }}
+                      disabled={!formData.branch}
+                    >
+                      <SelectTrigger className="mt-2 text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <SelectValue placeholder={formData.branch ? "Select semester" : "Select branch first"} />
+                      </SelectTrigger>
+                      <SelectContent className="text-slate-900">
+                        {semesters.length > 0 ? (
+                          semesters.map((sem) => (
+                            <SelectItem key={sem} value={String(sem)}>
+                              Semester {sem}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="px-2 py-1.5 text-sm text-slate-500">
+                            {formData.branch ? "No semesters available" : "Select branch first"}
+                          </div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Subject *</Label>
+                    <Select 
+                      value={formData.subject} 
+                      onValueChange={(value) => setFormData((prev) => ({ ...prev, subject: value }))}
+                      disabled={!formData.branch || !formData.semester}
+                    >
+                      <SelectTrigger className="mt-2 text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <SelectValue placeholder={formData.branch && formData.semester ? "Select subject" : "Select branch and semester first"} />
+                      </SelectTrigger>
+                      <SelectContent className="text-slate-900">
+                        {subjects.length > 0 ? (
+                          subjects.map((subject) => (
+                            <SelectItem key={subject.code} value={subject.name}>
+                              {subject.name} ({subject.code})
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="px-2 py-1.5 text-sm text-slate-500">
+                            {formData.branch && formData.semester ? "No subjects available" : "Select branch and semester first"}
+                          </div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">Course Title</Label>
+                    <Input
+                      className="mt-2"
+                      placeholder="Enter course title"
+                      value={formData.title}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Description</Label>
+                    <Input
+                      className="mt-2"
+                      placeholder="Brief description"
+                      value={formData.description}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4" />
+                      Course Cover Image
+                    </Label>
+                    <Input
+                      className="mt-2"
+                      placeholder="https://..."
+                      value={formData.coverPhoto}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, coverPhoto: e.target.value, coverPhotoFile: null }))}
+                      disabled={!!formData.coverPhotoFile}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Paste an image URL (JPG/PNG) or upload below. Uploaded images override the URL.
+                    </p>
+                    <div className="mt-3 space-y-2">
+                      <Input type="file" accept="image/*" onChange={handleCoverPhotoFileChange} />
+                      {formData.coverPhotoFile && (
+                        <div className="flex items-center justify-between text-xs text-slate-600">
+                          <span>{formData.coverPhotoFile.name}</span>
+                          <button type="button" className="text-red-500 hover:underline" onClick={clearCoverPhotoFile}>
+                            Remove upload
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {(formData.coverPhotoFile || formData.coverPhoto) && (
+                      <div className="mt-3 h-32 rounded-xl border overflow-hidden">
+                        <img
+                          src={formData.coverPhotoFile ? coverPreviewUrl : formData.coverPhoto}
+                          alt="Cover preview"
+                          className="w-full h-full object-cover"
+                          onError={() => toast.error("Unable to load cover photo preview")}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <ExternalLink className="w-4 h-4" />
+                      External Resource Link
+                    </Label>
+                    <Input
+                      className="mt-2"
+                      placeholder="https://learning-platform.com/my-course"
+                      value={formData.resourceUrl}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, resourceUrl: e.target.value }))}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      The popup CTA will open this link in a new tab.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button type="submit" className="w-full md:w-auto" disabled={isSubmitting}>
+                    {isSubmitting ? "Saving..." : editingCourse ? "Update Course" : "Launch Course"}
+                  </Button>
+                  {editingCourse && (
+                    <Button type="button" variant="outline" onClick={resetForm} disabled={isSubmitting}>
+                      Cancel
+                    </Button>
+                  )}
+                </div>
+              </form>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
       <Card className="border border-slate-200 shadow-md">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -440,8 +720,18 @@ const AdminCourseManager: React.FC = () => {
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <Label className="text-sm text-blue-500 font-medium">Branch</Label>
-              <Select value={filterBranch} onValueChange={setFilterBranch}>
+              <Label className="text-sm text-blue-500 font-medium">Branch *</Label>
+              <Select 
+                value={filterBranch} 
+                onValueChange={(value) => {
+                  setFilterBranch(value);
+                  // Reset semester and subject when branch changes
+                  setFilterSemester("");
+                  setFilterSubject(SUBJECT_ALL_VALUE);
+                  setSemesters([]);
+                  setSubjects([]);
+                }}
+              >
                 <SelectTrigger className="mt-2 text-slate-900">
                   <SelectValue placeholder="Select branch" />
                 </SelectTrigger>
@@ -455,33 +745,54 @@ const AdminCourseManager: React.FC = () => {
               </Select>
             </div>
             <div>
-              <Label className="text-sm text-blue-500 font-medium">Semester</Label>
-              <Select value={filterSemester} onValueChange={setFilterSemester}>
-                <SelectTrigger className="mt-2 text-slate-900">
-                  <SelectValue placeholder="Select semester" />
+              <Label className="text-sm text-blue-500 font-medium">Semester *</Label>
+              <Select 
+                value={filterSemester} 
+                onValueChange={(value) => {
+                  setFilterSemester(value);
+                  // Reset subject when semester changes
+                  setFilterSubject(SUBJECT_ALL_VALUE);
+                  setSubjects([]);
+                }}
+                disabled={!filterBranch}
+              >
+                <SelectTrigger className="mt-2 text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <SelectValue placeholder={filterBranch ? "Select semester" : "Select branch first"} />
                 </SelectTrigger>
                 <SelectContent className="text-slate-900">
-                  {semesters.map((sem) => (
-                    <SelectItem key={sem} value={String(sem)}>
-                      Semester {sem}
-                    </SelectItem>
-                  ))}
+                  {semesters.length > 0 ? (
+                    semesters.map((sem) => (
+                      <SelectItem key={sem} value={String(sem)}>
+                        Semester {sem}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="px-2 py-1.5 text-sm text-slate-500">No semesters available</div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
             <div>
               <Label className="text-sm text-blue-500 font-medium">Subject</Label>
-              <Select value={filterSubject} onValueChange={setFilterSubject}>
-                <SelectTrigger className="mt-2 text-slate-900">
-                  <SelectValue placeholder="All subjects" />
+              <Select 
+                value={filterSubject} 
+                onValueChange={setFilterSubject}
+                disabled={!filterBranch || !filterSemester}
+              >
+                <SelectTrigger className="mt-2 text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <SelectValue placeholder={filterBranch && filterSemester ? "All subjects" : "Select branch and semester first"} />
                 </SelectTrigger>
                 <SelectContent className="text-slate-900">
                   <SelectItem value={SUBJECT_ALL_VALUE}>All subjects</SelectItem>
-                  {subjects.map((subject) => (
-                    <SelectItem key={subject.code} value={subject.name}>
-                      {subject.name} ({subject.code})
-                    </SelectItem>
-                  ))}
+                  {subjects.length > 0 ? (
+                    subjects.map((subject) => (
+                      <SelectItem key={subject.code} value={subject.name}>
+                        {subject.name} ({subject.code})
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="px-2 py-1.5 text-sm text-slate-500">No subjects available</div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -555,16 +866,18 @@ const AdminCourseManager: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center justify-end gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => handleEditCourse(course)}>
-                        <Pencil className="w-4 h-4 mr-1" />
-                        Edit
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteCourse(course)}>
-                        <Trash2 className="w-4 h-4 mr-1" />
-                        Delete
-                      </Button>
-                    </div>
+                    {isAdmin && (
+                      <div className="flex items-center justify-end gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleEditCourse(course)}>
+                          <Pencil className="w-4 h-4 mr-1" />
+                          Edit
+                        </Button>
+                        <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => handleDeleteCourse(course)}>
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Delete
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -573,178 +886,6 @@ const AdminCourseManager: React.FC = () => {
         </CardContent>
       </Card>
 
-      <Card className="border border-slate-200 shadow-md">
-        <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div>
-          <CardTitle className="flex items-center gap-2">
-            <PlusCircle className="w-5 h-5 text-primary" />
-              {editingCourse ? "Update Course" : "Launch New Course"}
-            </CardTitle>
-            {editingCourse && (
-              <p className="text-xs text-muted-foreground">
-                Editing <strong>{editingCourse.title}</strong>. Make changes below or{" "}
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="text-primary underline underline-offset-2"
-                >
-                  cancel editing
-                </button>
-                .
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {isFormOpen && !editingCourse && (
-              <Button variant="ghost" size="sm" onClick={() => setIsFormOpen(false)}>
-                Hide Form
-              </Button>
-            )}
-            {!isFormOpen && (
-              <Button size="sm" onClick={() => setIsFormOpen(true)}>
-            Launch New Course
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        {isFormOpen && (
-        <CardContent>
-          <form className="space-y-4" onSubmit={handleSubmitCourse}>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label className="text-sm font-medium">Branch</Label>
-                <Select value={formData.branch} onValueChange={(value) => setFormData((prev) => ({ ...prev, branch: value }))}>
-                  <SelectTrigger className="mt-2 text-slate-900">
-                    <SelectValue placeholder="Select branch" />
-                  </SelectTrigger>
-                  <SelectContent className="text-slate-900">
-                    {branches.map((branch) => (
-                      <SelectItem key={branch} value={branch}>
-                        {branch}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-sm font-medium">Semester</Label>
-                <Select value={formData.semester} onValueChange={(value) => setFormData((prev) => ({ ...prev, semester: value }))}>
-                  <SelectTrigger className="mt-2 text-slate-900">
-                    <SelectValue placeholder="Select semester" />
-                  </SelectTrigger>
-                  <SelectContent className="text-slate-900">
-                    {semesters.map((sem) => (
-                      <SelectItem key={sem} value={String(sem)}>
-                        Semester {sem}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-sm font-medium">Subject</Label>
-                <Select value={formData.subject} onValueChange={(value) => setFormData((prev) => ({ ...prev, subject: value }))}>
-                  <SelectTrigger className="mt-2 text-slate-900">
-                    <SelectValue placeholder="Select subject" />
-                  </SelectTrigger>
-                  <SelectContent className="text-slate-900">
-                    {subjects.map((subject) => (
-                      <SelectItem key={subject.code} value={subject.name}>
-                        {subject.name} ({subject.code})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label className="text-sm font-medium">Course Title</Label>
-                <Input
-                  className="mt-2"
-                  placeholder="Enter course title"
-                  value={formData.title}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
-                />
-              </div>
-              <div>
-                <Label className="text-sm font-medium">Description</Label>
-                <Input
-                  className="mt-2"
-                  placeholder="Brief description"
-                  value={formData.description}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label className="text-sm font-medium flex items-center gap-2">
-                  <ImageIcon className="w-4 h-4" />
-                  Course Cover Image
-                </Label>
-                <Input
-                  className="mt-2"
-                  placeholder="https://..."
-                  value={formData.coverPhoto}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, coverPhoto: e.target.value, coverPhotoFile: null }))}
-                  disabled={!!formData.coverPhotoFile}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Paste an image URL (JPG/PNG) or upload below. Uploaded images override the URL.
-                </p>
-                <div className="mt-3 space-y-2">
-                  <Input type="file" accept="image/*" onChange={handleCoverPhotoFileChange} />
-                  {formData.coverPhotoFile && (
-                    <div className="flex items-center justify-between text-xs text-slate-600">
-                      <span>{formData.coverPhotoFile.name}</span>
-                      <button type="button" className="text-red-500 hover:underline" onClick={clearCoverPhotoFile}>
-                        Remove upload
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {(formData.coverPhotoFile || formData.coverPhoto) && (
-                  <div className="mt-3 h-32 rounded-xl border overflow-hidden">
-                    <img
-                      src={formData.coverPhotoFile ? coverPreviewUrl : formData.coverPhoto}
-                      alt="Cover preview"
-                      className="w-full h-full object-cover"
-                      onError={() => toast.error("Unable to load cover photo preview")}
-                    />
-                  </div>
-                )}
-              </div>
-              <div>
-                <Label className="text-sm font-medium flex items-center gap-2">
-                  <ExternalLink className="w-4 h-4" />
-                  External Resource Link
-                </Label>
-                <Input
-                  className="mt-2"
-                  placeholder="https://learning-platform.com/my-course"
-                  value={formData.resourceUrl}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, resourceUrl: e.target.value }))}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  The popup CTA will open this link in a new tab.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Button type="submit" className="w-full md:w-auto" disabled={isSubmitting}>
-                {isSubmitting ? "Saving..." : editingCourse ? "Update Course" : "Launch Course"}
-              </Button>
-              {editingCourse && (
-                <Button type="button" variant="outline" onClick={resetForm} disabled={isSubmitting}>
-                  Cancel
-            </Button>
-              )}
-            </div>
-          </form>
-        </CardContent>
-        )}
-      </Card>
     </div>
   );
 };

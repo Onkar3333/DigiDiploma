@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ALL_BRANCHES } from "@/constants/branches";
-import { Eye, EyeOff, Mail, Phone as PhoneIcon } from "lucide-react";
+import { Eye, EyeOff, Mail } from "lucide-react";
 
 interface LoginFormProps {
   onLogin: (credentials: { emailOrStudentId: string; password: string }) => Promise<{ success: boolean; error?: string; message?: string } | boolean | void>;
@@ -32,15 +32,12 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
   const [forgotMsg, setForgotMsg] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
   
-  // OTP verification states
+  // OTP verification states (email only)
   const [emailOTPSent, setEmailOTPSent] = useState(false);
-  const [phoneOTPSent, setPhoneOTPSent] = useState(false);
   const [emailOTP, setEmailOTP] = useState("");
-  const [phoneOTP, setPhoneOTP] = useState("");
   const [emailVerified, setEmailVerified] = useState(false);
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [otpLoading, setOtpLoading] = useState({ email: false, phone: false });
-  const [verifyLoading, setVerifyLoading] = useState({ email: false, phone: false });
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
 
   React.useEffect(() => {
     setShow(true);
@@ -70,116 +67,86 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSendOTP = async (type: 'email' | 'phone') => {
+  const handleSendOTP = async () => {
     setError("");
-    setOtpLoading({ ...otpLoading, [type]: true });
+    setOtpLoading(true);
     
     try {
-      const endpoint = type === 'email' 
-        ? `/api/users/send-email-otp`
-        : `/api/users/send-phone-otp`;
-      
-      const payload = type === 'email'
-        ? { email: form.email }
-        : { phone: form.phone };
-      
-      const res = await fetch(endpoint, {
+      const res = await fetch(`/api/users/send-email-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ email: form.email })
       });
       
       const data = await res.json();
       
       if (res.ok) {
-        if (type === 'email') {
-          setEmailOTPSent(true);
-          if (data.method === 'email') {
-            setSuccess(`✅ OTP sent successfully! Please check your email inbox (${form.email}) for the verification code.`);
-          } else {
-            // Console mode - show OTP in development
-            const otpMessage = data.otp 
-              ? `OTP generated: ${data.otp} (Check server console for details)`
-              : `OTP generated. ${data.note || 'Check server console for OTP code.'}`;
-            setSuccess(`⚠️ ${otpMessage}`);
-          }
-          setError(""); // Clear any previous errors
+        setEmailOTPSent(true);
+        if (data.method === 'email') {
+          setSuccess(`✅ OTP sent successfully! Please check your email inbox (${form.email}) for the verification code.`);
         } else {
-          setPhoneOTPSent(true);
-          if (data.method === 'sms') {
-            setSuccess(`✅ OTP sent successfully! Please check your SMS inbox (${data.phone || form.phone}) for the verification code.`);
-          } else {
-            // Console mode - show OTP in development
-            const otpMessage = data.otp 
-              ? `OTP generated: ${data.otp} (Check server console for details)`
-              : `OTP generated. ${data.note || 'Check server console for OTP code.'}`;
-            setSuccess(`⚠️ ${otpMessage}`);
-          }
-          setError(""); // Clear any previous errors
+          // Console mode - show OTP in development
+          const otpMessage = data.otp 
+            ? `OTP generated: ${data.otp} (Check server console for details)`
+            : `OTP generated. ${data.note || 'Check server console for OTP code.'}`;
+          setSuccess(`⚠️ ${otpMessage}`);
         }
+        setError(""); // Clear any previous errors
       } else {
         // Handle rate limiting (429) and other errors
         if (res.status === 429) {
-          const retryAfter = data.retryAfter || 15;
+          const retryAfter = data.retryAfter || 30;
           const errorMsg = data.error || `Please wait ${retryAfter} seconds before requesting a new OTP.`;
           setError(errorMsg);
+          // Show a more helpful message
+          if (data.cooldown) {
+            setError(`⏱️ ${errorMsg} This helps prevent spam.`);
+          } else {
+            setError(`⏱️ ${errorMsg} Too many requests. Please wait a few minutes.`);
+          }
         } else {
-          const errorMsg = data.error || `Failed to send ${type} OTP. Please try again.`;
+          const errorMsg = data.error || `Failed to send email OTP. Please try again.`;
           setError(errorMsg);
         }
         setSuccess(""); // Clear success message on error
       }
     } catch (err: any) {
-      const errorMsg = err.message || `Network error. Failed to send ${type} OTP. Please check your connection and try again.`;
+      const errorMsg = err.message || `Network error. Failed to send email OTP. Please check your connection and try again.`;
       setError(errorMsg);
       setSuccess(""); // Clear success message on error
     } finally {
-      setOtpLoading({ ...otpLoading, [type]: false });
+      setOtpLoading(false);
     }
   };
 
-  const handleVerifyOTP = async (type: 'email' | 'phone') => {
+  const handleVerifyOTP = async () => {
     setError("");
-    setVerifyLoading({ ...verifyLoading, [type]: true });
+    setVerifyLoading(true);
     
     try {
-      const endpoint = type === 'email'
-        ? `/api/users/verify-email-otp`
-        : `/api/users/verify-phone-otp`;
-      
-      const payload = type === 'email'
-        ? { email: form.email, otp: emailOTP }
-        : { phone: form.phone, otp: phoneOTP };
-      
-      const res = await fetch(endpoint, {
+      const res = await fetch(`/api/users/verify-email-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ email: form.email, otp: emailOTP })
       });
       
       const data = await res.json();
       
       if (res.ok) {
-        if (type === 'email') {
-          setEmailVerified(true);
-          setSuccess("Email verified successfully! ✓");
-          setError(""); // Clear any previous errors
-        } else {
-          setPhoneVerified(true);
-          setSuccess("Phone number verified successfully! ✓");
-          setError(""); // Clear any previous errors
-        }
+        setEmailVerified(true);
+        setSuccess("Email verified successfully! ✓");
+        setError(""); // Clear any previous errors
       } else {
-        const errorMsg = data.error || `Invalid ${type} OTP. Please check the code and try again.`;
+        const errorMsg = data.error || `Invalid email OTP. Please check the code and try again.`;
         setError(errorMsg);
         setSuccess(""); // Clear success message on error
       }
     } catch (err: any) {
-      const errorMsg = err.message || `Network error. Failed to verify ${type} OTP. Please check your connection and try again.`;
+      const errorMsg = err.message || `Network error. Failed to verify email OTP. Please check your connection and try again.`;
       setError(errorMsg);
       setSuccess(""); // Clear success message on error
     } finally {
-      setVerifyLoading({ ...verifyLoading, [type]: false });
+      setVerifyLoading(false);
     }
   };
 
@@ -240,12 +207,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
           return;
         }
         
-        if (!phoneVerified) {
-          setError("Please verify your phone number with OTP before registering.");
-          setLoading(false);
-          return;
-        }
-        
         const result = await onCreate({
           name: form.name,
           email: form.email,
@@ -275,11 +236,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
                   emailOrStudentId: ""
                 });
                 setEmailOTP("");
-                setPhoneOTP("");
                 setEmailVerified(false);
-                setPhoneVerified(false);
                 setEmailOTPSent(false);
-                setPhoneOTPSent(false);
               }, 2000);
             } else {
               setError(result.error || "Registration failed. Please try again.");
@@ -291,11 +249,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
               setIsRegister(false);
               setForm({ ...form, password: "" });
               setEmailOTP("");
-              setPhoneOTP("");
               setEmailVerified(false);
-              setPhoneVerified(false);
               setEmailOTPSent(false);
-              setPhoneOTPSent(false);
             }, 2000);
           }
         } else {
@@ -305,11 +260,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
         setIsRegister(false);
         setForm({ ...form, password: "" });
         setEmailOTP("");
-        setPhoneOTP("");
         setEmailVerified(false);
-        setPhoneVerified(false);
         setEmailOTPSent(false);
-        setPhoneOTPSent(false);
           }, 2000);
         }
       } else {
@@ -375,24 +327,21 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
         {/* Tabs */}
         <div className="flex justify-center mt-4 mb-2 gap-2">
           <button
-            className={`px-4 py-2 rounded-t-lg font-medium transition-colors duration-200 ${!isRegister ? "bg-white text-indigo-600 border-b-2 border-indigo-500" : "bg-gray-100 text-gray-500"}`}
+            className={`px-4 py-2 rounded-t-lg font-medium transition-colors duration-200 hover:bg-indigo-600 hover:text-white ${!isRegister ? "bg-white text-indigo-600 border-b-2 border-indigo-500" : "bg-gray-100 text-gray-500"}`}
             onClick={() => {
               setIsRegister(false);
               setError("");
               setSuccess("");
               setEmailVerified(false);
-              setPhoneVerified(false);
               setEmailOTPSent(false);
-              setPhoneOTPSent(false);
               setEmailOTP("");
-              setPhoneOTP("");
               setForm({ ...form, password: "", emailOrStudentId: "" });
             }}
           >
             Login
           </button>
           <button
-            className={`px-4 py-2 rounded-t-lg font-medium transition-colors duration-200 ${isRegister ? "bg-white text-indigo-600 border-b-2 border-indigo-500" : "bg-gray-100 text-gray-500"}`}
+            className={`px-4 py-2 rounded-t-lg font-medium transition-colors duration-200 hover:bg-indigo-600 hover:text-white ${isRegister ? "bg-white text-indigo-600 border-b-2 border-indigo-500" : "bg-gray-100 text-gray-500"}`}
             onClick={() => {
               setIsRegister(true);
               setError("");
@@ -465,11 +414,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
                   <div className="mt-2 flex gap-2">
                     <button
                       type="button"
-                      onClick={() => handleSendOTP('email')}
-                      disabled={!form.email || otpLoading.email}
+                      onClick={handleSendOTP}
+                      disabled={!form.email || otpLoading}
                       className="flex-1 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded transition-colors flex items-center justify-center"
                     >
-                      {otpLoading.email ? (
+                      {otpLoading ? (
                         <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
                       ) : (
                         <>
@@ -490,11 +439,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
                         />
                         <button
                           type="button"
-                          onClick={() => handleVerifyOTP('email')}
-                          disabled={!emailOTP || verifyLoading.email}
+                          onClick={handleVerifyOTP}
+                          disabled={!emailOTP || verifyLoading}
                           className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded transition-colors"
                         >
-                          {verifyLoading.email ? (
+                          {verifyLoading ? (
                             <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
                           ) : (
                             "Verify"
@@ -515,62 +464,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
                 <input
                   type="tel"
                   name="phone"
-                  placeholder="Mobile Number (e.g., +91 9876543210)"
+                  placeholder="Mobile Number (Optional)"
                   value={form.phone}
                   onChange={handleChange}
                   className="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                  required
-                  disabled={phoneVerified}
                 />
-                {!phoneVerified && (
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleSendOTP('phone')}
-                      disabled={!form.phone || otpLoading.phone}
-                      className="flex-1 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded transition-colors flex items-center justify-center"
-                    >
-                      {otpLoading.phone ? (
-                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                      ) : (
-                        <>
-                          <PhoneIcon className="w-3 h-3 mr-1" />
-                          Send OTP
-                        </>
-                      )}
-                    </button>
-                    {phoneOTPSent && (
-                      <>
-                        <input
-                          type="text"
-                          placeholder="Enter OTP"
-                          value={phoneOTP}
-                          onChange={(e) => setPhoneOTP(e.target.value)}
-                          maxLength={6}
-                          className="flex-1 px-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleVerifyOTP('phone')}
-                          disabled={!phoneOTP || verifyLoading.phone}
-                          className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded transition-colors"
-                        >
-                          {verifyLoading.phone ? (
-                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                          ) : (
-                            "Verify"
-                          )}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-                {phoneVerified && (
-                  <div className="mt-1 text-xs text-green-600 flex items-center">
-                    <PhoneIcon className="w-3 h-3 mr-1" />
-                    Phone verified ✓
-                  </div>
-                )}
               </div>
               <input
                 type="text"
@@ -677,14 +575,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
               <span className="flex-1">{success}</span>
             </div>
           )}
-          {!isRegister && (
-            <div className="text-xs text-gray-500 text-center bg-blue-50 p-2 rounded">
-              <strong>Admin Login:</strong> admin@eduportal.com / admin123
-            </div>
-          )}
           <button
             type="submit"
-            disabled={loading || (isRegister && (!emailVerified || !phoneVerified))}
+            disabled={loading || (isRegister && !emailVerified)}
             className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white font-semibold py-2 rounded transition-colors duration-200 flex items-center justify-center"
           >
             {loading ? (
