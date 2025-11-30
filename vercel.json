@@ -7,11 +7,15 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://digidiploma-backend.onrender.com/api/:path*"
+      "destination": "https://api.digidiploma.in/api/:path*"
     },
     {
       "source": "/uploads/:path*",
-      "destination": "https://digidiploma-backend.onrender.com/uploads/:path*"
+      "destination": "https://api.digidiploma.in/uploads/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
