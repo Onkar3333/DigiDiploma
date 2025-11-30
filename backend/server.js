@@ -30,6 +30,10 @@ console.log('📁 Environment files loaded:', {
 const app = express();
 const server = createServer(app);
 
+// Trust proxy - Required for Render and other reverse proxies
+// This allows Express to correctly read X-Forwarded-* headers
+app.set('trust proxy', 1);
+
 // Initialize MongoDB connection (REQUIRED - no fallback)
 (async () => {
   try {
