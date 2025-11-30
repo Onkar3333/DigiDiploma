@@ -1,6 +1,17 @@
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { initializeApp } from 'firebase/app';
-import { firebaseConfig } from '../../backend/firebase-config.js';
+
+// Firebase configuration for FCM (DigiDiploma project)
+// Use environment variables if available, otherwise use default config
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyA7lUPH9-kMz3NVgS5VKVJSM3CjMuU4Kjc',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'digidiploma-f106d.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'digidiploma-f106d',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'digidiploma-f106d.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '802660843445',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:802660843445:web:8147404bfcefada57be3fc',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-L644P3CG8L'
+};
 
 // Initialize Firebase app for FCM
 const app = initializeApp(firebaseConfig);
