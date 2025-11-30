@@ -114,10 +114,10 @@ Before deploying, ensure you have:
    - **Name:** `digidiploma-backend` (or any name you prefer)
    - **Region:** Choose closest to your users (e.g., Singapore, US East)
    - **Branch:** `main` (or your main branch)
-   - **Root Directory:** `backend`
+   - **Root Directory:** Leave **EMPTY** (or set to `.`)
    - **Runtime:** `Node`
-   - **Build Command:** `npm install` (if Render requires a value, otherwise leave empty)
-   - **Start Command:** `node server.js`
+   - **Build Command:** `cd backend && npm install`
+   - **Start Command:** `cd backend && node server.js`
    
    **⚠️ Critical:** 
    - If Render allows empty Build Command, leave it empty
