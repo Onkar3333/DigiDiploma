@@ -188,17 +188,14 @@ const otpLimiter = rateLimit({
 router.post("/register", authLimiter, validate(userRegistrationSchema), async (req, res) => {
   const { name, email, password, college, studentId, branch, semester, userType, phone } = req.body;
   try {
-    // Verify email OTP (required)
-    const emailOTPData = otpStore.get(`email:${email}`);
-    if (!emailOTPData || !emailOTPData.verified) {
-      return res.status(400).json({ error: "Email not verified. Please verify your email with OTP first." });
-    }
+    // OTP verification removed - direct registration with email validation
+    // Email format is validated by userRegistrationSchema (Joi validation)
     
     // Normalize email to lowercase for checking and creating (MongoDB schema enforces lowercase)
     const normalizedEmail = email.trim().toLowerCase();
     console.log(`📝 Processing registration with email: ${normalizedEmail} (original: ${email})`);
     
-    // Check for existing user by email or studentId (phone is optional, no OTP required)
+    // Check for existing user by email or studentId
     const existingUser = await User.findOne({ 
       $or: [
         { email: normalizedEmail }, 
@@ -206,7 +203,7 @@ router.post("/register", authLimiter, validate(userRegistrationSchema), async (r
       ] 
     });
     if (existingUser) {
-      return res.status(409).json({ error: "User with this email, enrollment number, or phone number already exists." });
+      return res.status(409).json({ error: "User with this email or enrollment number already exists." });
     }
     
     // Create user - password will be hashed by User.create() method
@@ -223,9 +220,6 @@ router.post("/register", authLimiter, validate(userRegistrationSchema), async (r
     });
     
     console.log(`✅ User created successfully: ${created.email} (ID: ${created.id || created._id})`);
-    
-    // Clear OTP after successful registration
-    otpStore.delete(`email:${email}`);
     
     // Notify admins in real-time
     try { await notificationService.notifyUserCreated(created); } catch {}
