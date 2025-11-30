@@ -116,11 +116,23 @@ Before deploying, ensure you have:
    - **Branch:** `main` (or your main branch)
    - **Root Directory:** `backend`
    - **Runtime:** `Node`
-   - **Build Command:** `npm install`
+   - **Build Command:** `npm install` (if Render requires a value, otherwise leave empty)
    - **Start Command:** `node server.js`
+   
+   **⚠️ Critical:** 
+   - If Render allows empty Build Command, leave it empty
+   - If Render requires a value, use `npm install` (safe - just installs dependencies)
+   - Do NOT use `npm run build`, `npm audit fix`, or `node server.js` in Build Command
+   - Do NOT put `node server.js` in Build Command (that goes in Start Command)
+   - If you see "npm audit" or "vite" errors, Build Command is incorrectly set
    - **Instance Type:** 
      - **Free:** 512 MB RAM (good for testing)
      - **Starter:** $7/month (recommended for production)
+   
+   **⚠️ Important:** 
+   - Do NOT set Build Command to `npm run build` (that's for frontend only)
+   - Backend only needs to install dependencies and start the server
+   - If you see "vite: not found" error, it means Build Command is incorrectly set
 
 4. **Environment Variables:**
    - Click "Add Environment Variable" for each:
@@ -435,6 +447,17 @@ All variables listed in Step 2 of Backend Deployment section above.
 - Check `PORT` is set to `10000`
 - Ensure `server.js` is in `backend` directory
 - Verify `Start Command` is `node server.js`
+- **If you see "Cannot find module" error:**
+  - Check **Root Directory** is set to exactly `backend` (case-sensitive, no slashes)
+  - Verify `backend/server.js` exists in your GitHub repository
+  - Try alternative: Set Root Directory to `.` and Start Command to `cd backend && node server.js`
+  - Check Render logs to see what directory structure it sees
+- **If you see "vite: not found" or "npm audit" errors:**
+  - Go to Render Dashboard → Your Service → Settings
+  - Check "Build Command" field
+  - It should be `npm install` (if required) or empty
+  - Do NOT use `npm run build`, `npm audit fix`, or anything else
+  - Save changes and go to Manual Deploy → Clear build cache & deploy
 
 **Problem: MongoDB connection fails**
 - Verify `MONGODB_URI` is correct in Render environment variables

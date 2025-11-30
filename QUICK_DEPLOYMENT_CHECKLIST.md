@@ -51,10 +51,17 @@
 
 ### 3. Configure Service
 - **Name:** `digidiploma-backend`
-- **Root Directory:** `backend`
-- **Build Command:** `npm install`
-- **Start Command:** `node server.js`
+- **Root Directory:** `backend` ← Important!
+- **Build Command:** 
+  - If allowed: Leave **EMPTY**
+  - If required: Use `npm install`
+- **Start Command:** `node server.js` ← This is where node server.js goes
 - **Instance Type:** Free (or Starter $7/month for production)
+
+⚠️ **Critical:** 
+- Do NOT put `node server.js` in Build Command (that's for Start Command)
+- Do NOT use `npm run build` or `npm audit fix` in Build Command
+- If you see "Cannot find module" errors, Build Command is incorrectly set
 
 ### 4. Add Environment Variables
 Click "Add Environment Variable" for each:
