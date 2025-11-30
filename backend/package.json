@@ -1,0 +1,39 @@
+{
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "seed:subjects": "node migrate-subjects-cli.js --file subjects.json",
+    "migrate:firebase": "node migrate-to-firebase.js",
+    "admin:create": "node scripts/create-admin.js",
+    "debug:auth": "node scripts/debug-auth.js",
+    "users:list": "node scripts/list-users.js",
+    "firebase:setup": "node setup-firebase.js",
+    "firebase:test": "node test-firebase-connection.js",
+    "firebase:migrate": "node migrate-to-firebase.js",
+    "migrate:mongodb": "node scripts/migrate-to-mongodb.js",
+    "test:mongodb": "node scripts/test-mongodb-connection.js",
+    "check:env": "node scripts/check-env.js",
+    "add:mongodb": "node scripts/add-mongodb-uri.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.939.0",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.1.5",
+    "firebase": "^12.2.1",
+    "firebase-admin": "^13.5.0",
+    "helmet": "^7.1.0",
+    "joi": "^17.11.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^7.0.0",
+    "mongoose": "^8.20.1",
+    "nodemailer": "^7.0.11",
+    "razorpay": "^2.9.6",
+    "stripe": "^14.0.0",
+    "twilio": "^5.10.6",
+    "ws": "^8.18.3"
+  }
+}
