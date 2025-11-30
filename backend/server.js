@@ -275,6 +275,27 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true });
 });
 
+// Root endpoint - Welcome message
+app.get('/', (req, res) => {
+  res.json({
+    message: '🎓 DigiDiploma API Server',
+    status: 'Running',
+    version: '1.0.0',
+    endpoints: {
+      users: '/api/users',
+      projects: '/api/projects',
+      subjects: '/api/subjects',
+      materials: '/api/materials',
+      notices: '/api/notices',
+      courses: '/api/courses',
+      quizzes: '/api/quizzes',
+      dashboard: '/api/dashboard',
+      health: '/api/health'
+    },
+    documentation: 'Contact admin for API documentation'
+  });
+});
+
 // Prepare WebSocket server (initialize after HTTP server starts listening)
 import notificationService from './websocket.js';
 
