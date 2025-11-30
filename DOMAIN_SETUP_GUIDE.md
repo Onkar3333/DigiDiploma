@@ -35,46 +35,23 @@ TTL: 3600 (or leave as default)
 
 ✅ This makes your API accessible at: `https://api.digidiploma.in`
 
-#### **For Frontend** (Choose based on where you host)
+#### **For Frontend** (Vercel - Your Chosen Platform)
 
-**Option A: Hosting on Render**
+Add these DNS records for Vercel:
+
 ```
-Type: CNAME
-Name: www
-Points to: your-frontend-app.onrender.com
-TTL: 3600
-
 Type: A
 Name: @ (root domain)
-Points to: 216.24.57.1 (Render's IP - verify current IP in Render docs)
+Points to: 76.76.21.21
 TTL: 3600
-```
 
-**Option B: Hosting on Vercel**
-```
 Type: CNAME
 Name: www
 Points to: cname.vercel-dns.com
 TTL: 3600
-
-Type: A
-Name: @
-Points to: 76.76.21.21 (Vercel's IP)
-TTL: 3600
 ```
 
-**Option C: Hosting on Netlify**
-```
-Type: CNAME
-Name: www
-Points to: your-site.netlify.app
-TTL: 3600
-
-Type: A
-Name: @
-Points to: 75.2.60.5 (Netlify's IP)
-TTL: 3600
-```
+**Note:** Vercel will automatically handle SSL certificates once DNS is configured.
 
 ---
 
@@ -97,11 +74,21 @@ Render will:
 - ✅ Automatically provision SSL certificate
 - ✅ Enable HTTPS
 
-### For Frontend (if hosting on Render):
+### For Frontend (Vercel):
 
-Repeat the same process but add:
-- `digidiploma.in` (root domain)
-- `www.digidiploma.in` (www subdomain)
+1. Go to [Vercel Dashboard](https://vercel.com/dashboard)
+2. Select your DigiDiploma project
+3. Go to **Settings** → **Domains**
+4. Click **Add Domain**
+5. Add both domains:
+   - `digidiploma.in` (root domain)
+   - `www.digidiploma.in` (www subdomain)
+6. Vercel will provide DNS instructions
+7. Once DNS propagates, Vercel will auto-provision SSL certificates
+
+**Vercel Configuration:**
+- Vercel automatically detects `VITE_` environment variables from your `.env` file
+- Make sure to set environment variables in Vercel dashboard if needed
 
 ---
 
@@ -126,14 +113,36 @@ RAZORPAY_KEY_SECRET=...
 # ... other variables
 ```
 
-### Frontend Environment Variables
+### Frontend Environment Variables (Vercel)
 
-In your frontend (Vite/React), update `.env.production`:
+**Option 1: Using Vercel Dashboard (Recommended)**
+
+1. Go to your Vercel project → **Settings** → **Environment Variables**
+2. Add these variables:
+
+```bash
+VITE_API_URL=https://api.digidiploma.in
+VITE_BACKEND_URL=https://api.digidiploma.in
+VITE_FIREBASE_API_KEY=your-firebase-api-key
+VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project-id
+# ... other Firebase config
+```
+
+3. Select **Production**, **Preview**, and **Development** environments
+4. Click **Save**
+5. Redeploy your application
+
+**Option 2: Using .env.production file**
+
+Create `.env.production` in your project root (if not using Vercel dashboard):
 
 ```bash
 VITE_API_URL=https://api.digidiploma.in
 VITE_BACKEND_URL=https://api.digidiploma.in
 ```
+
+**Note:** Never commit `.env.production` to git if it contains sensitive keys!
 
 ---
 
@@ -233,9 +242,9 @@ After setup, your DNS should look like this:
 
 | Type  | Name | Value | Purpose |
 |-------|------|-------|---------|
-| CNAME | api  | digidiploma-backend.onrender.com | Backend API |
-| CNAME | www  | your-frontend.onrender.com | Frontend (www) |
-| A     | @    | [Your host IP] | Frontend (root) |
+| CNAME | api  | digidiploma-backend.onrender.com | Backend API (Render) |
+| CNAME | www  | cname.vercel-dns.com | Frontend www (Vercel) |
+| A     | @    | 76.76.21.21 | Frontend root (Vercel) |
 
 ---
 
@@ -253,25 +262,32 @@ After complete setup:
 
 ## 🔄 **Redirect www to non-www (Optional)**
 
-To redirect `www.digidiploma.in` → `digidiploma.in`, add this to your frontend hosting:
+To redirect `www.digidiploma.in` → `digidiploma.in`:
 
-**On Render:** Create a `_redirects` file:
-```
-https://www.digidiploma.in/* https://digidiploma.in/:splat 301!
-```
+**Create or update `vercel.json` in your project root:**
 
-**On Vercel:** Add to `vercel.json`:
 ```json
 {
   "redirects": [
     {
-      "source": "https://www.digidiploma.in/:path*",
-      "destination": "https://digidiploma.in/:path*",
-      "permanent": true
+      "source": "/api/:path*",
+      "destination": "https://api.digidiploma.in/api/:path*"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/"
     }
   ]
 }
 ```
+
+**Or let Vercel handle it automatically:**
+- When you add both `digidiploma.in` and `www.digidiploma.in` in Vercel
+- Vercel will ask which should be the primary domain
+- Select `digidiploma.in` as primary
+- Vercel will automatically redirect www → non-www
 
 ---
 

@@ -22,15 +22,15 @@ Name: api
 Value: digidiploma-backend.onrender.com
 ```
 
-### Frontend (if on Render)
+### Frontend (Vercel)
 ```
-Type: CNAME
-Name: www
-Value: your-frontend-app.onrender.com
-
 Type: A
 Name: @
-Value: [Render's IP]
+Value: 76.76.21.21
+
+Type: CNAME
+Name: www
+Value: cname.vercel-dns.com
 ```
 
 ---
@@ -48,15 +48,18 @@ MONGODB_URI=mongodb+srv://...
 JWT_SECRET=...
 ```
 
-### Frontend Service (if applicable)
+### Frontend Service (Vercel)
 **Custom Domains**: 
-- `digidiploma.in`
-- `www.digidiploma.in`
+- `digidiploma.in` (primary)
+- `www.digidiploma.in` (redirects to primary)
 
-**Environment Variables:**
+**Environment Variables** (in Vercel Dashboard):
 ```
 VITE_API_URL=https://api.digidiploma.in
 VITE_BACKEND_URL=https://api.digidiploma.in
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+# ... other Firebase variables
 ```
 
 ---
@@ -92,7 +95,8 @@ curl -I https://api.digidiploma.in
 ## 📞 Important Links
 
 - **Hostinger Dashboard**: https://hpanel.hostinger.com
-- **Render Dashboard**: https://dashboard.render.com
+- **Render Dashboard** (Backend): https://dashboard.render.com
+- **Vercel Dashboard** (Frontend): https://vercel.com/dashboard
 - **DNS Checker**: https://dnschecker.org
 - **GitHub Repo**: https://github.com/digidiploma06/DigiDiploma
 
