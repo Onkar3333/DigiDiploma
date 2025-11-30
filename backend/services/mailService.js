@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { sendgridService } from './sendgridService.js';
 
 let cachedTransporter = null;
 
@@ -27,29 +28,55 @@ const getTransporter = () => {
     port,
     secure,
     auth: { user, pass },
-    tls: { rejectUnauthorized: tlsReject }
+    tls: { rejectUnauthorized: tlsReject },
+    connectionTimeout: 10000, // 10 seconds
+    greetingTimeout: 10000,
+    socketTimeout: 10000
   });
 
   return cachedTransporter;
 };
 
 export const mailService = {
-  canSend: () => Boolean(getTransporter()),
+  canSend: () => Boolean(getTransporter()) || sendgridService.canSend(),
+  
   async sendMail({ to, subject, html, text }) {
+    // Try SendGrid first if configured (more reliable on cloud platforms)
+    if (sendgridService.canSend()) {
+      try {
+        console.log('📧 Sending email via SendGrid to:', to);
+        return await sendgridService.sendMail({ to, subject, html, text });
+      } catch (error) {
+        console.error('❌ SendGrid failed, trying SMTP fallback:', error.message);
+        // Fall through to SMTP if SendGrid fails
+      }
+    }
+
+    // Fallback to SMTP
     const transporter = getTransporter();
     if (!transporter) {
-      throw new Error('SMTP credentials are not configured');
+      throw new Error('Email service not configured. Please set either SENDGRID_API_KEY or SMTP credentials.');
     }
+    
+    console.log('📧 Sending email via SMTP to:', to);
     const fromAddress = process.env.SMTP_FROM || process.env.SMTP_USER;
     const replyTo = process.env.SMTP_REPLY_TO || process.env.SMTP_USER;
-    return transporter.sendMail({
-      from: fromAddress,
-      to,
-      subject,
-      html,
-      text,
-      replyTo
-    });
+    
+    try {
+      const result = await transporter.sendMail({
+        from: fromAddress,
+        to,
+        subject,
+        html,
+        text,
+        replyTo
+      });
+      console.log('✅ Email sent via SMTP to:', to);
+      return result;
+    } catch (error) {
+      console.error('❌ SMTP Error:', error.message);
+      throw new Error(`Failed to send email: ${error.message}`);
+    }
   }
 };
 
