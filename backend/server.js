@@ -107,12 +107,31 @@ app.use((req, res, next) => {
   return limiter(req, res, next);
 });
 
-// CORS configuration
+// CORS configuration - Allow multiple origins
+const allowedOrigins = [
+  'http://localhost:8080',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://digidiploma.in',
+  'https://www.digidiploma.in',
+  'https://api.digidiploma.in',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:8080',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 // Body parsing middleware
@@ -281,6 +300,8 @@ app.get('/', (req, res) => {
     message: '🎓 DigiDiploma API Server',
     status: 'Running',
     version: '1.0.0',
+    domain: 'digidiploma.in',
+    apiUrl: 'https://api.digidiploma.in',
     endpoints: {
       users: '/api/users',
       projects: '/api/projects',
@@ -292,7 +313,8 @@ app.get('/', (req, res) => {
       dashboard: '/api/dashboard',
       health: '/api/health'
     },
-    documentation: 'Contact admin for API documentation'
+    documentation: 'Contact admin for API documentation',
+    timestamp: new Date().toISOString()
   });
 });
 
