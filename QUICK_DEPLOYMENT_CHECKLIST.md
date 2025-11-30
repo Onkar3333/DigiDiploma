@@ -51,11 +51,9 @@
 
 ### 3. Configure Service
 - **Name:** `digidiploma-backend`
-- **Root Directory:** `backend` ← Important!
-- **Build Command:** 
-  - If allowed: Leave **EMPTY**
-  - If required: Use `npm install`
-- **Start Command:** `node server.js` ← This is where node server.js goes
+- **Root Directory:** Leave **EMPTY** (or set to `.`)
+- **Build Command:** `cd backend && npm install`
+- **Start Command:** `cd backend && node server.js`
 - **Instance Type:** Free (or Starter $7/month for production)
 
 ⚠️ **Critical:** 
