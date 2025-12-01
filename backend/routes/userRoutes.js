@@ -188,14 +188,13 @@ const otpLimiter = rateLimit({
 router.post("/register", authLimiter, validate(userRegistrationSchema), async (req, res) => {
   const { name, email, password, college, studentId, branch, semester, userType, phone } = req.body;
   try {
-    // OTP verification removed - direct registration with email validation
-    // Email format is validated by userRegistrationSchema (Joi validation)
+    // OTP verification removed - direct registration with email only
     
     // Normalize email to lowercase for checking and creating (MongoDB schema enforces lowercase)
     const normalizedEmail = email.trim().toLowerCase();
     console.log(`📝 Processing registration with email: ${normalizedEmail} (original: ${email})`);
     
-    // Check for existing user by email or studentId
+    // Check for existing user by email or studentId (phone is optional)
     const existingUser = await User.findOne({ 
       $or: [
         { email: normalizedEmail }, 
@@ -219,7 +218,7 @@ router.post("/register", authLimiter, validate(userRegistrationSchema), async (r
       phone: phone || ''
     });
     
-    console.log(`✅ User created successfully: ${created.email} (ID: ${created.id || created._id})`);
+    console.log(`✅ User registered successfully: ${created.email} (ID: ${created.id || created._id})`);
     
     // Notify admins in real-time
     try { await notificationService.notifyUserCreated(created); } catch {}
