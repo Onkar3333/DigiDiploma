@@ -53,8 +53,14 @@ const NotificationHandler: React.FC = () => {
         // Note: Topic subscriptions are handled server-side when needed
         // Removed automatic topic subscriptions to prevent errors
       }
+      // If no token (VAPID not configured), push notifications are disabled
+      // App will work fine without them - this is an optional feature
     } catch (error) {
-      console.error('FCM initialization error:', error);
+      // Silent fail - push notifications are optional
+      // Only log in development
+      if (import.meta.env.DEV) {
+        console.warn('Push notifications not available:', error);
+      }
     }
   };
 

@@ -39,12 +39,8 @@ export class FCMService {
     try {
       // Check if VAPID key is configured
       if (!VAPID_KEY || VAPID_KEY === '') {
-        console.error('VAPID key is not configured. Please set VITE_FIREBASE_VAPID_KEY in your .env file.');
-        console.error('To get your VAPID key:');
-        console.error('1. Go to Firebase Console > Project Settings > Cloud Messaging');
-        console.error('2. Scroll to "Web Push certificates" section');
-        console.error('3. Click "Generate key pair" if no key exists');
-        console.error('4. Copy the key and add it to your .env file as VITE_FIREBASE_VAPID_KEY');
+        // Silent fail - push notifications are optional feature
+        console.warn('ℹ️ Push notifications disabled: VAPID key not configured (optional feature)');
         return null;
       }
 
