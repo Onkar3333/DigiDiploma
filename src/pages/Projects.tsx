@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { normalizeMaterialUrls } from '@/lib/urlUtils';
 import { 
   Code, Search, Filter, Upload, Download, Eye, Star, 
   Github, ExternalLink, FileText, Image as ImageIcon, Video,
@@ -304,8 +305,11 @@ const Projects = () => {
       const data = await res.json();
       const allProjects = data.projects || [];
       
+      // Normalize URLs in all projects (convert localhost URLs to relative paths)
+      const normalizedProjects = allProjects.map((p: any) => normalizeMaterialUrls(p));
+      
       // Separate admin and student projects
-      const adminProjects = allProjects.filter((p: any) => p.isAdminProject && p.status === 'approved');
+      const adminProjects = normalizedProjects.filter((p: any) => p.isAdminProject && p.status === 'approved');
       
       // Filter student projects
       // Admins see all student projects
@@ -313,10 +317,10 @@ const Projects = () => {
       let studentProjs: Project[] = [];
       if (user?.userType === 'admin') {
         // Admins see all student projects
-        studentProjs = allProjects.filter((p: any) => !p.isAdminProject);
+        studentProjs = normalizedProjects.filter((p: any) => !p.isAdminProject);
       } else {
         // Students see only their own projects (backend already filters, but we ensure it)
-        studentProjs = allProjects.filter((p: any) => !p.isAdminProject && p.studentId === user?.id);
+        studentProjs = normalizedProjects.filter((p: any) => !p.isAdminProject && p.studentId === user?.id);
       }
       
       setProjects(adminProjects);

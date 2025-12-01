@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { authService } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
+import { normalizeMaterialUrls } from '@/lib/urlUtils';
 import {
   Code, Search, Upload, Download, Eye, Star, Github, CheckCircle, X, Clock,
   FileText, Image as ImageIcon, Video, Plus, Trash2, Edit, ExternalLink
@@ -169,7 +170,9 @@ const AdminProjectsManager = () => {
         headers: { ...authService.getAuthHeaders() }
       });
       const data = await res.json();
-      setProjects(data.projects || []);
+      // Normalize URLs in projects (convert localhost URLs to relative paths)
+      const normalizedProjects = (data.projects || []).map((p: any) => normalizeMaterialUrls(p));
+      setProjects(normalizedProjects);
     } catch (err) {
       toast({ title: "Failed to load projects", variant: "destructive" });
     } finally {

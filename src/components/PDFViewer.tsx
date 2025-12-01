@@ -73,7 +73,8 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         }
         
         if (key) {
-          const proxyUrl = `${window.location.origin}/api/materials/proxy/r2/${encodeURIComponent(key)}`;
+          // Use relative URL so Vercel can proxy it correctly
+          const proxyUrl = `/api/materials/proxy/r2/${encodeURIComponent(key)}`;
           console.log('PDFViewer: Converting R2 URL to proxy:', originalUrl, '->', proxyUrl);
           return proxyUrl;
         }

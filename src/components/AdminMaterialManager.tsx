@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { normalizeMaterialUrls } from '@/lib/urlUtils';
 import { 
   Plus, 
   Upload, 
@@ -360,7 +361,7 @@ const AdminMaterialManager = () => {
             ? m.accessType 
             : 'free';
           
-          return {
+          const normalized = {
             ...m,
             _id: m._id || m.id,
             id: m.id || m._id,
@@ -369,6 +370,9 @@ const AdminMaterialManager = () => {
             price: m.price || 0,
             googleDriveUrl: m.googleDriveUrl || null
           };
+          
+          // Normalize URLs (convert localhost URLs to relative paths)
+          return normalizeMaterialUrls(normalized);
         });
         setMaterials(normalizedMaterials);
         console.log(`✅ Loaded ${normalizedMaterials.length} materials`);
