@@ -9,7 +9,7 @@
       "destination": "https://api.digidiploma.in/uploads/:path*"
     },
     {
-      "source": "/:path((?!assets|icons|.*\\.).*)",
+      "source": "/((?!.*\\.).*)",
       "destination": "/index.html"
     }
   ]
