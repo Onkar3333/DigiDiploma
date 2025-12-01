@@ -33,13 +33,32 @@ export const useWebSocket = ({
     try {
       // Use wss:// for production, ws:// for development
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      
       // In production, WebSocket should connect to backend domain, not frontend
       // For development, use localhost:5000
       const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const backendHost = isDevelopment 
-        ? `${window.location.hostname}:5000`
-        : import.meta.env.VITE_WS_URL || window.location.hostname.replace('www.', 'api.');
+      
+      let backendHost;
+      if (isDevelopment) {
+        backendHost = `${window.location.hostname}:5000`;
+      } else {
+        // For production, use api.digidiploma.in
+        const wsUrlEnv = import.meta.env.VITE_WS_URL;
+        if (wsUrlEnv) {
+          // Remove protocol if it exists in env var
+          backendHost = wsUrlEnv.replace(/^(https?|wss?):\/\//, '');
+        } else {
+          // Fallback: replace www. with api. in current hostname
+          backendHost = window.location.hostname.replace('www.', 'api.').replace('digidiploma.in', 'api.digidiploma.in');
+          // Or if not www, just use api.digidiploma.in
+          if (!backendHost.includes('api.')) {
+            backendHost = 'api.digidiploma.in';
+          }
+        }
+      }
+      
       const wsUrl = `${protocol}//${backendHost}`;
+      console.log('🔌 Connecting to WebSocket:', wsUrl);
       
       wsRef.current = new WebSocket(wsUrl);
       // expose globally for admin dashboard to listen
