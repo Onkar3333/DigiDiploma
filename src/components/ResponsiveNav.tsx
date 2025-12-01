@@ -61,12 +61,18 @@ export const ResponsiveNav: React.FC = () => {
     return (
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetTrigger asChild>
-          <Button variant="ghost" size="sm" className="md:hidden">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="md:hidden touch-manipulation"
+            onClick={() => setIsOpen(true)}
+            aria-label="Open menu"
+          >
             <Menu className="h-5 w-5" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="w-[300px] sm:w-[400px]">
-          <div className="flex flex-col h-full">
+        <SheetContent side="left" className="w-[300px] sm:w-[400px] z-[100]">
+          <div className="flex flex-col h-full touch-manipulation">
             {/* User Info */}
             <div className="flex items-center gap-3 p-4 border-b">
               <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
