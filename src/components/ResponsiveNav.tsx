@@ -14,7 +14,6 @@ import {
   BookOpen,
   Home
 } from 'lucide-react';
-import { useIsMobile } from '@/hooks/use-mobile';
 
 interface NavItem {
   label: string;
@@ -36,7 +35,6 @@ export const ResponsiveNav: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const isMobile = useIsMobile();
 
   const handleLogout = () => {
     logout();
@@ -57,43 +55,45 @@ export const ResponsiveNav: React.FC = () => {
     return null;
   }
 
-  if (isMobile) {
-    return (
-      <>
-        <Button 
-          variant="ghost" 
-          size="icon"
-          className="md:hidden touch-manipulation relative z-50 pointer-events-auto h-10 w-10"
-          style={{ 
-            WebkitTapHighlightColor: 'transparent',
-            touchAction: 'manipulation',
-            minWidth: '40px',
-            minHeight: '40px'
-          }}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsOpen(true);
-          }}
-          onTouchStart={(e) => {
-            e.stopPropagation();
-          }}
-          onTouchEnd={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsOpen(true);
-          }}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsOpen(true);
-          }}
-          aria-label="Open menu"
-          type="button"
-        >
-          <Menu className="h-6 w-6" />
-        </Button>
-        <Sheet open={isOpen} onOpenChange={setIsOpen}>
+  return (
+    <>
+      {/* Mobile Menu Button - Always visible on mobile, hidden on desktop */}
+      <Button 
+        variant="ghost" 
+        size="icon"
+        className="flex md:hidden touch-manipulation relative z-50 pointer-events-auto h-10 w-10"
+        style={{ 
+          WebkitTapHighlightColor: 'transparent',
+          touchAction: 'manipulation',
+          minWidth: '40px',
+          minHeight: '40px'
+        }}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsOpen(true);
+        }}
+        onTouchStart={(e) => {
+          e.stopPropagation();
+        }}
+        onTouchEnd={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsOpen(true);
+        }}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsOpen(true);
+        }}
+        aria-label="Open menu"
+        type="button"
+      >
+        <Menu className="h-6 w-6" />
+      </Button>
+
+      {/* Mobile Menu Sheet */}
+      <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetContent 
           side="left" 
           className="w-[300px] sm:w-[400px] z-[100] [&>button]:hidden"
@@ -174,12 +174,9 @@ export const ResponsiveNav: React.FC = () => {
           </div>
         </SheetContent>
       </Sheet>
-      </>
-    );
-  }
 
-  return (
-    <nav className="hidden md:flex items-center space-x-4">
+      {/* Desktop Navigation - Hidden on mobile, visible on desktop */}
+      <nav className="hidden md:flex items-center space-x-4">
       {filteredNavItems.map((item) => {
         const Icon = item.icon;
         const isActive = location.pathname === item.path;
@@ -206,5 +203,6 @@ export const ResponsiveNav: React.FC = () => {
         </Button>
       </div>
     </nav>
+    </>
   );
 };
