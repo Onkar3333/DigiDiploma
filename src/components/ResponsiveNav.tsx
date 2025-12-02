@@ -71,8 +71,34 @@ export const ResponsiveNav: React.FC = () => {
             <Menu className="h-5 w-5" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="w-[300px] sm:w-[400px] z-[100]">
+        <SheetContent 
+          side="left" 
+          className="w-[300px] sm:w-[400px] z-[100] [&>button]:hidden"
+          onInteractOutside={(e) => {
+            // Allow closing by tapping outside
+            setIsOpen(false);
+          }}
+          onEscapeKeyDown={() => setIsOpen(false)}
+        >
           <div className="flex flex-col h-full touch-manipulation">
+            {/* Close Button - Custom with explicit handler */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-4 top-4 h-10 w-10 touch-manipulation z-10"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsOpen(false);
+              }}
+              onTouchStart={(e) => {
+                e.stopPropagation();
+              }}
+              aria-label="Close menu"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+
             {/* User Info */}
             <div className="flex items-center gap-3 p-4 border-b">
               <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
