@@ -3,9 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>DigiDiploma - Advanced Study Platform for Polytechnic Students</title>
     <meta name="description" content="Advanced study platform for polytechnic students with real-time access to materials, quizzes, progress tracking, and personalized learning experiences." />
-    <!-- Build: v1.0.1 -->
+    <!-- Build: v1.0.2 -->
     <meta name="author" content="DigiDiploma Team" />
     
     <!-- PWA Meta Tags -->
@@ -41,6 +44,25 @@
 
   <body>
     <div id="root"></div>
+    <script>
+      // Clear caches on page load to ensure fresh content
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          for (let name of names) {
+            caches.delete(name);
+          }
+        });
+      }
+      
+      // Unregister all service workers on load
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(let registration of registrations) {
+            registration.unregister();
+          }
+        });
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

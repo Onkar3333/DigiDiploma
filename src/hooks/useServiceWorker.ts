@@ -24,8 +24,26 @@ export const useServiceWorker = () => {
 
   const registerServiceWorker = async () => {
     try {
+      // Unregister all existing service workers first to force fresh start
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const registration of registrations) {
+        await registration.unregister();
+        console.log('Unregistered old service worker');
+      }
+
+      // Clear all caches
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(
+          cacheNames.map(cacheName => caches.delete(cacheName))
+        );
+        console.log('Cleared all caches');
+      }
+
+      // Register new service worker
       const registration = await navigator.serviceWorker.register('/sw.js', {
-        scope: '/'
+        scope: '/',
+        updateViaCache: 'none' // Never use cache for service worker itself
       });
 
       setSwState(prev => ({
@@ -34,13 +52,24 @@ export const useServiceWorker = () => {
         registration
       }));
 
+      // Force immediate update check
+      await registration.update();
+
       // Handle service worker updates
       registration.addEventListener('updatefound', () => {
         const newWorker = registration.installing;
         if (newWorker) {
           newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              setSwState(prev => ({ ...prev, isUpdated: true }));
+            if (newWorker.state === 'installed') {
+              // Immediately activate new worker
+              if (newWorker.waiting) {
+                newWorker.waiting.postMessage({ type: 'SKIP_WAITING' });
+              }
+              if (navigator.serviceWorker.controller) {
+                setSwState(prev => ({ ...prev, isUpdated: true }));
+                // Force reload to use new service worker
+                window.location.reload();
+              }
             }
           });
         }

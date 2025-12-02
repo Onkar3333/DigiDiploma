@@ -1,14 +1,13 @@
 // DigiDiploma Service Worker
-const CACHE_NAME = 'digidiploma-v1.0.1';
-const STATIC_CACHE = 'digidiploma-static-v1.0.1';
-const DYNAMIC_CACHE = 'digidiploma-dynamic-v1.0.1';
+const CACHE_NAME = 'digidiploma-v1.0.2';
+const STATIC_CACHE = 'digidiploma-static-v1.0.2';
+const DYNAMIC_CACHE = 'digidiploma-dynamic-v1.0.2';
 
-// Files to cache for offline functionality
+// HTML files that should NEVER be cached
+const HTML_FILES = ['/', '/index.html'];
+
+// Files to cache for offline functionality (excluding HTML)
 const STATIC_FILES = [
-  '/',
-  '/index.html',
-  '/static/js/bundle.js',
-  '/static/css/main.css',
   '/manifest.json',
   '/favicon.ico',
   '/icons/android-chrome-192x192.png',
@@ -51,7 +50,9 @@ self.addEventListener('activate', (event) => {
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
-            if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
+            // Delete ALL old caches to force fresh start
+            if (!cacheName.startsWith('digidiploma-') || 
+                (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE)) {
               console.log('Service Worker: Deleting old cache', cacheName);
               return caches.delete(cacheName);
             }
@@ -59,7 +60,8 @@ self.addEventListener('activate', (event) => {
         );
       })
       .then(() => {
-        console.log('Service Worker: Activated');
+        console.log('Service Worker: Activated - All old caches cleared');
+        // Force immediate takeover
         return self.clients.claim();
       })
   );
@@ -72,6 +74,17 @@ self.addEventListener('fetch', (event) => {
 
   // Handle different types of requests
   if (request.method === 'GET') {
+    // HTML files - ALWAYS fetch from network, never cache
+    if (HTML_FILES.includes(url.pathname) || url.pathname.endsWith('.html')) {
+      event.respondWith(
+        fetch(request, { cache: 'no-store' }).catch(() => {
+          // Only fallback to cache if network completely fails (offline)
+          return caches.match(request);
+        })
+      );
+      return;
+    }
+    
     // Static files - cache first strategy
     if (STATIC_FILES.includes(url.pathname)) {
       event.respondWith(cacheFirst(request));
