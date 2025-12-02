@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { 
   Menu, 
   X, 
@@ -59,18 +59,39 @@ export const ResponsiveNav: React.FC = () => {
 
   if (isMobile) {
     return (
-      <Sheet open={isOpen} onOpenChange={setIsOpen}>
-        <SheetTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="md:hidden touch-manipulation"
-            onClick={() => setIsOpen(true)}
-            aria-label="Open menu"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-        </SheetTrigger>
+      <>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="md:hidden touch-manipulation relative z-50 pointer-events-auto"
+          style={{ 
+            WebkitTapHighlightColor: 'transparent',
+            touchAction: 'manipulation'
+          }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsOpen(true);
+          }}
+          onTouchStart={(e) => {
+            e.stopPropagation();
+          }}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsOpen(true);
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsOpen(true);
+          }}
+          aria-label="Open menu"
+          type="button"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+        <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetContent 
           side="left" 
           className="w-[300px] sm:w-[400px] z-[100] [&>button]:hidden"
@@ -151,6 +172,7 @@ export const ResponsiveNav: React.FC = () => {
           </div>
         </SheetContent>
       </Sheet>
+      </>
     );
   }
 
