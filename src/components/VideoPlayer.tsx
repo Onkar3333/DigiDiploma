@@ -17,6 +17,7 @@ import {
   SkipForward
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { normalizeBackendUrl } from '@/lib/urlUtils';
 
 interface VideoPlayerProps {
   url: string;
@@ -239,8 +240,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   };
 
   const downloadVideo = () => {
+    const normalizedUrl = normalizeBackendUrl(url);
     const link = document.createElement('a');
-    link.href = url;
+    link.href = normalizedUrl.startsWith('http') ? normalizedUrl : `${window.location.origin}${normalizedUrl}`;
     link.download = `${title}.mp4`;
     document.body.appendChild(link);
     link.click();
@@ -296,7 +298,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         >
           <video
             ref={videoRef}
-            src={url}
+            src={(() => {
+              const normalized = normalizeBackendUrl(url);
+              return normalized.startsWith('http') ? normalized : `${window.location.origin}${normalized}`;
+            })()}
             className="w-full h-auto"
             poster=""
             preload="metadata"

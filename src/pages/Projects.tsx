@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { normalizeMaterialUrls } from '@/lib/urlUtils';
+import { normalizeMaterialUrls, normalizeBackendUrl } from '@/lib/urlUtils';
 import { 
   Code, Search, Filter, Upload, Download, Eye, Star, 
   Github, ExternalLink, FileText, Image as ImageIcon, Video,
@@ -96,20 +96,23 @@ const ACADEMIC_YEARS = ["2022-23", "2023-24", "2024-25", "2025-26"];
 const getProxyUrl = (url: string | null | undefined): string => {
   if (!url) return '';
   
+  // FIRST: Normalize any localhost URLs to relative paths
+  const normalizedUrl = normalizeBackendUrl(url);
+  
   // Check if it's already a proxy URL
-  if (url.includes('/api/projects/proxy/')) {
-    return url;
+  if (normalizedUrl.includes('/api/projects/proxy/') || normalizedUrl.includes('/api/materials/proxy/')) {
+    return normalizedUrl;
   }
   
   // Check if it's an R2 URL
-  if (url.includes('r2.cloudflarestorage.com')) {
+  if (normalizedUrl.includes('r2.cloudflarestorage.com')) {
     // Extract the key from the R2 URL
     // Format: https://[account-id].r2.cloudflarestorage.com/[bucket]/[key]
     // or: https://[bucket].[account-id].r2.cloudflarestorage.com/[key]
     let key = '';
     
     try {
-      const urlObj = new URL(url);
+      const urlObj = new URL(normalizedUrl);
       const pathParts = urlObj.pathname.split('/').filter(Boolean);
       
       // Remove bucket name if it's the first part
@@ -133,11 +136,11 @@ const getProxyUrl = (url: string | null | undefined): string => {
       return `/api/projects/proxy/r2/${encodeURIComponent(key)}`;
     } catch (e) {
       console.error('Error parsing R2 URL:', e);
-      return url;
+      return normalizedUrl;
     }
   }
   
-  return url;
+  return normalizedUrl;
 };
 
 // Utility function to convert YouTube URLs to embed format
@@ -415,7 +418,9 @@ const Projects = () => {
       return;
     }
     if (project.pdfUrl) {
-      window.open(project.pdfUrl, '_blank');
+      // Normalize URL before opening
+      const normalizedUrl = getProxyUrl(project.pdfUrl);
+      window.open(normalizedUrl, '_blank');
     }
   };
 
@@ -1304,7 +1309,10 @@ const Projects = () => {
                       // If not YouTube, try as direct video URL
                       return (
                         <video 
-                          src={selectedProject.videoUrl} 
+                          src={(() => {
+                            const normalized = normalizeBackendUrl(selectedProject.videoUrl || '');
+                            return normalized.startsWith('http') ? normalized : `${window.location.origin}${normalized}`;
+                          })()}
                           controls 
                           className="w-full h-64 rounded"
                         >

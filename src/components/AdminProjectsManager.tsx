@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { authService } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
-import { normalizeMaterialUrls } from '@/lib/urlUtils';
+import { normalizeMaterialUrls, normalizeBackendUrl } from '@/lib/urlUtils';
 import {
   Code, Search, Upload, Download, Eye, Star, Github, CheckCircle, X, Clock,
   FileText, Image as ImageIcon, Video, Plus, Trash2, Edit, ExternalLink
@@ -38,15 +38,18 @@ const ADMIN_SUBJECT_OPTIONS = [
 const getProxyUrl = (url: string | null | undefined): string => {
   if (!url) return '';
   
+  // FIRST: Normalize any localhost URLs to relative paths
+  const normalizedUrl = normalizeBackendUrl(url);
+  
   // Check if it's already a proxy URL
-  if (url.includes('/api/materials/proxy/')) {
-    return url;
+  if (normalizedUrl.includes('/api/materials/proxy/') || normalizedUrl.includes('/api/projects/proxy/')) {
+    return normalizedUrl;
   }
   
   // Check if it's an R2 URL
-  if (url.includes('r2.cloudflarestorage.com')) {
+  if (normalizedUrl.includes('r2.cloudflarestorage.com')) {
     try {
-      const urlObj = new URL(url);
+      const urlObj = new URL(normalizedUrl);
       const pathname = urlObj.pathname;
       
       // Extract the key from pathname (e.g., /digidiploma/materials/file.jpg -> materials/file.jpg)
@@ -82,11 +85,11 @@ const getProxyUrl = (url: string | null | undefined): string => {
         return `/api/materials/proxy/r2/${encodeURIComponent(key)}`;
       }
     } catch (e) {
-      console.error('Error parsing R2 URL:', e, url);
+      console.error('Error parsing R2 URL:', e, normalizedUrl);
     }
   }
   
-  return url;
+  return normalizedUrl;
 };
 
 interface Project {

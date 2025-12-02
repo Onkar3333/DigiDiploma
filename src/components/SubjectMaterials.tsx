@@ -28,6 +28,7 @@ import {
   Lock
 } from 'lucide-react';
 import { initializePayment, RazorpayResponse } from '@/lib/razorpay';
+import { normalizeBackendUrl } from '@/lib/urlUtils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { authService } from '@/lib/auth';
@@ -337,8 +338,10 @@ const SubjectMaterials: React.FC<SubjectMaterialsProps> = ({
 
         if (linkResponse.ok) {
           const linkData = await linkResponse.json();
+          // Normalize download URL before opening
+          const normalizedDownloadUrl = normalizeBackendUrl(linkData.downloadUrl);
           // Open secure download link
-          window.open(linkData.downloadUrl, '_blank');
+          window.open(normalizedDownloadUrl, '_blank');
           toast({ 
             title: "Download Started", 
             description: "Your secure download link is opening." 
@@ -409,7 +412,9 @@ const SubjectMaterials: React.FC<SubjectMaterialsProps> = ({
     } catch (error) {
       console.error('Download error:', error);
     }
-    window.open(url, '_blank');
+    // Normalize URL before opening
+    const normalizedUrl = normalizeBackendUrl(url);
+    window.open(normalizedUrl, '_blank');
   };
 
   if (loading) {
