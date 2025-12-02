@@ -497,3 +497,13 @@
     touch-action: manipulation;
   }
 }
+
+/* Mobile Bottom Nav Spacing */
+@layer utilities {
+  /* Add padding-bottom to pages when authenticated on mobile to prevent content from being hidden behind bottom nav */
+  @media (max-width: 768px) {
+    .mobile-bottom-nav-spacing {
+      padding-bottom: 4rem; /* 64px for bottom nav */
+    }
+  }
+}

@@ -70,6 +70,7 @@ const Index = () => {
   });
   const [showWhatsAppPopup, setShowWhatsAppPopup] = useState(true);
   const [popupEntered, setPopupEntered] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Typing effect for "Welcome to DigiDiploma"
   const typingText = useTypingEffect({
@@ -257,7 +258,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
       {/* Enhanced Navigation Bar */}
-      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200/50 shadow-sm">
+      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200/50 shadow-sm relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
@@ -311,10 +312,89 @@ const Index = () => {
             </div>
 
             <div className="md:hidden">
-              <Button variant="ghost" size="sm">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="touch-manipulation"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+              >
                 <Menu className="w-5 h-5" />
               </Button>
             </div>
+            
+            {/* Mobile Menu Dropdown */}
+            {mobileMenuOpen && (
+              <div className="absolute top-16 left-0 right-0 bg-white border-b border-slate-200 shadow-lg md:hidden z-50">
+                <div className="flex flex-col py-2">
+                  <Link 
+                    to="/" 
+                    className="px-4 py-3 text-slate-700 hover:bg-blue-50 hover:text-blue-600 font-medium transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Home
+                  </Link>
+                  <Link 
+                    to="/materials" 
+                    className="px-4 py-3 text-slate-700 hover:bg-blue-50 hover:text-blue-600 font-medium transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Materials
+                  </Link>
+                  <Link 
+                    to="/projects" 
+                    className="px-4 py-3 text-slate-700 hover:bg-blue-50 hover:text-blue-600 font-medium transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Projects
+                  </Link>
+                  <a 
+                    href="/internship" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="px-4 py-3 text-slate-700 hover:bg-blue-50 hover:text-blue-600 font-medium transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Internship
+                  </a>
+                  <Link 
+                    to="/about" 
+                    className="px-4 py-3 text-slate-700 hover:bg-blue-50 hover:text-blue-600 font-medium transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    About
+                  </Link>
+                  <Link 
+                    to="/contact" 
+                    className="px-4 py-3 text-slate-700 hover:bg-blue-50 hover:text-blue-600 font-medium transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Contact
+                  </Link>
+                  <div className="border-t border-slate-200 mt-2 pt-2">
+                    <button
+                      onClick={() => {
+                        setCurrentState('login');
+                        setMobileMenuOpen(false);
+                      }}
+                      className="w-full mx-4 mb-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 transition-colors"
+                    >
+                      Login
+                    </button>
+                    <button
+                      onClick={() => {
+                        window.open('https://chat.whatsapp.com/BXyJ9ykaMnKKyHokiz2lII?mode=hqrt2', '_blank');
+                        setMobileMenuOpen(false);
+                      }}
+                      className="w-full mx-4 px-4 py-2 border border-green-600 text-green-600 rounded-lg font-medium hover:bg-green-50 transition-colors flex items-center justify-center"
+                    >
+                      <MessageCircle className="w-4 h-4 mr-2" />
+                      Join Community
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </nav>
