@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { normalizeMaterialUrls, normalizeBackendUrl } from '@/lib/urlUtils';
+import { normalizeMaterialUrls, normalizeBackendUrl, downloadFile } from '@/lib/urlUtils';
 import { 
   Code, Search, Filter, Upload, Download, Eye, Star, 
   Github, ExternalLink, FileText, Image as ImageIcon, Video,
@@ -418,9 +418,16 @@ const Projects = () => {
       return;
     }
     if (project.pdfUrl) {
-      // Normalize URL before opening
+      // Normalize URL before downloading
       const normalizedUrl = getProxyUrl(project.pdfUrl);
-      window.open(normalizedUrl, '_blank');
+      // Extract filename from project title
+      const filename = project.title ? `${project.title}.pdf` : 'project.pdf';
+      // Force download instead of opening in new tab
+      await downloadFile(normalizedUrl, filename);
+      toast({ 
+        title: "Download Started", 
+        description: "Your file is downloading." 
+      });
     }
   };
 

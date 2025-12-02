@@ -8,7 +8,7 @@ import PDFViewer from './PDFViewer';
 import VideoPlayer from './VideoPlayer';
 import { toast } from 'sonner';
 import { authService } from '@/lib/auth';
-import { normalizeBackendUrl } from '@/lib/urlUtils';
+import { normalizeBackendUrl, downloadFile } from '@/lib/urlUtils';
 
 interface Material {
   id: string;
@@ -216,10 +216,11 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
 
         if (linkResponse.ok) {
           const linkData = await linkResponse.json();
-          // Open secure download link
-          window.open(linkData.downloadUrl, '_blank');
+          // Force download instead of opening in new tab
+          const filename = material.title ? `${material.title}.pdf` : 'material.pdf';
+          await downloadFile(linkData.downloadUrl, filename);
           toast.success('Download Started', {
-            description: 'Your secure download link is opening.'
+            description: 'Your file is downloading.'
           });
           return;
         } else {
@@ -303,12 +304,8 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
     }
     
     // For free materials, proceed with direct download
-    const link = document.createElement('a');
-    link.href = absoluteUrl;
-    link.download = `${material.title}.${material.type === 'pdf' ? 'pdf' : 'mp4'}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const filename = `${material.title}.${material.type === 'pdf' ? 'pdf' : material.type === 'video' ? 'mp4' : ''}`;
+    await downloadFile(absoluteUrl, filename);
     toast.success('Download started');
   };
 

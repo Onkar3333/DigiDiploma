@@ -28,7 +28,7 @@ import {
   Lock
 } from 'lucide-react';
 import { initializePayment, RazorpayResponse } from '@/lib/razorpay';
-import { normalizeBackendUrl } from '@/lib/urlUtils';
+import { normalizeBackendUrl, downloadFile } from '@/lib/urlUtils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { authService } from '@/lib/auth';
@@ -268,8 +268,9 @@ const SubjectMaterials: React.FC<SubjectMaterialsProps> = ({
         });
 
         // Automatically download using secure link
-        setTimeout(() => {
-          window.open(linkData.downloadUrl, '_blank');
+        setTimeout(async () => {
+          const filename = material.title ? `${material.title}.pdf` : 'material.pdf';
+          await downloadFile(linkData.downloadUrl, filename);
         }, 1000);
       } else {
         // Fallback to regular download if link generation fails
@@ -338,13 +339,15 @@ const SubjectMaterials: React.FC<SubjectMaterialsProps> = ({
 
         if (linkResponse.ok) {
           const linkData = await linkResponse.json();
-          // Normalize download URL before opening
+          // Normalize download URL before downloading
           const normalizedDownloadUrl = normalizeBackendUrl(linkData.downloadUrl);
-          // Open secure download link
-          window.open(normalizedDownloadUrl, '_blank');
+          // Extract filename from material title
+          const filename = material?.title ? `${material.title}.pdf` : 'material.pdf';
+          // Force download instead of opening in new tab
+          await downloadFile(normalizedDownloadUrl, filename);
           toast({ 
             title: "Download Started", 
-            description: "Your secure download link is opening." 
+            description: "Your file is downloading." 
           });
           return;
         } else {
@@ -366,6 +369,7 @@ const SubjectMaterials: React.FC<SubjectMaterialsProps> = ({
         return;
       }
       // For drive protected, use the googleDriveUrl
+      // Note: Google Drive links need to be opened, not downloaded
       if (material.googleDriveUrl) {
         window.open(material.googleDriveUrl, '_blank');
         toast({ title: "Opening Google Drive", description: "Material is opening in Google Drive." });
@@ -412,9 +416,13 @@ const SubjectMaterials: React.FC<SubjectMaterialsProps> = ({
     } catch (error) {
       console.error('Download error:', error);
     }
-    // Normalize URL before opening
+    // Normalize URL and force download
     const normalizedUrl = normalizeBackendUrl(url);
-    window.open(normalizedUrl, '_blank');
+    // Extract filename from material title or URL
+    const filename = material?.title 
+      ? `${material.title}${material.type === 'pdf' ? '.pdf' : material.type === 'video' ? '.mp4' : ''}`
+      : undefined;
+    await downloadFile(normalizedUrl, filename);
   };
 
   if (loading) {
