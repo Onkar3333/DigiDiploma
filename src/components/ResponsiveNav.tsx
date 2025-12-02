@@ -62,11 +62,13 @@ export const ResponsiveNav: React.FC = () => {
       <>
         <Button 
           variant="ghost" 
-          size="sm" 
-          className="md:hidden touch-manipulation relative z-50 pointer-events-auto"
+          size="icon"
+          className="md:hidden touch-manipulation relative z-50 pointer-events-auto h-10 w-10"
           style={{ 
             WebkitTapHighlightColor: 'transparent',
-            touchAction: 'manipulation'
+            touchAction: 'manipulation',
+            minWidth: '40px',
+            minHeight: '40px'
           }}
           onClick={(e) => {
             e.preventDefault();
@@ -89,7 +91,7 @@ export const ResponsiveNav: React.FC = () => {
           aria-label="Open menu"
           type="button"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-6 w-6" />
         </Button>
         <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetContent 
