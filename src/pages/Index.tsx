@@ -371,13 +371,13 @@ const Index = () => {
                   >
                     Contact
                   </Link>
-                  <div className="border-t border-slate-200 mt-2 pt-2">
+                  <div className="border-t border-slate-200 mt-2 pt-2 px-4 pb-2">
                     <button
                       onClick={() => {
                         setCurrentState('login');
                         setMobileMenuOpen(false);
                       }}
-                      className="w-full mx-4 mb-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 transition-colors"
+                      className="w-full mb-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 transition-colors text-sm"
                     >
                       Login
                     </button>
@@ -386,7 +386,7 @@ const Index = () => {
                         window.open('https://chat.whatsapp.com/BXyJ9ykaMnKKyHokiz2lII?mode=hqrt2', '_blank');
                         setMobileMenuOpen(false);
                       }}
-                      className="w-full mx-4 px-4 py-2 border border-green-600 text-green-600 rounded-lg font-medium hover:bg-green-50 transition-colors flex items-center justify-center"
+                      className="w-full px-4 py-2.5 border border-green-600 text-green-600 rounded-lg font-medium hover:bg-green-50 transition-colors flex items-center justify-center text-sm"
                     >
                       <MessageCircle className="w-4 h-4 mr-2" />
                       Join Community
