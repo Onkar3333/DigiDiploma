@@ -22,6 +22,28 @@ const normalizeMaterial = (material) => {
   };
 };
 
+// Normalize file URLs that may contain localhost or development hosts
+// Converts URLs like "http://localhost:8080/api/materials/proxy/r2/..." to relative paths
+// so they can be safely combined with the current host in production.
+const normalizeFileUrl = (url) => {
+  if (!url || typeof url !== 'string') return url;
+
+  try {
+    // Handle localhost URLs from development data
+    if (url.includes('localhost:8080') || url.includes('localhost:5000')) {
+      const match = url.match(/localhost:\d+(\/.*)/);
+      if (match && match[1]) {
+        return match[1]; // e.g. "/api/materials/proxy/r2/materials/..."
+      }
+    }
+
+    return url;
+  } catch (e) {
+    console.warn('normalizeFileUrl error:', e?.message || e, url);
+    return url;
+  }
+};
+
 async function ensureUploadsDir() {
   try {
     await fs.access(uploadsDir);
@@ -557,8 +579,8 @@ router.get("/secure-download/:token", async (req, res) => {
     // Increment download count
     await Material.incrementDownloads(downloadToken.materialId);
 
-    // Determine file URL
-    let fileUrl = material.url;
+    // Determine file URL (normalize any localhost/dev URLs first)
+    let fileUrl = normalizeFileUrl(material.url);
     
     // If it's an R2 URL, use proxy
     if (fileUrl && fileUrl.includes('r2.cloudflarestorage.com')) {
@@ -702,8 +724,8 @@ router.post("/:id/download", authenticateToken, async (req, res) => {
       console.error("Failed to broadcast download update:", notifyError);
     }
     
-    // Determine file URL and serve it
-    let fileUrl = material.url;
+    // Determine file URL and serve it (normalize any localhost/dev URLs first)
+    let fileUrl = normalizeFileUrl(material.url);
     
     // If it's an R2 URL, use proxy
     if (fileUrl && fileUrl.includes('r2.cloudflarestorage.com')) {
