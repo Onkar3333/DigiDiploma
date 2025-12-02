@@ -77,9 +77,18 @@ self.addEventListener('fetch', (event) => {
     // HTML files - ALWAYS fetch from network, never cache
     if (HTML_FILES.includes(url.pathname) || url.pathname.endsWith('.html')) {
       event.respondWith(
-        fetch(request, { cache: 'no-store' }).catch(() => {
+        fetch(request, { cache: 'no-store' }).catch(async () => {
           // Only fallback to cache if network completely fails (offline)
-          return caches.match(request);
+          const cached = await caches.match(request);
+          if (cached) {
+            return cached;
+          }
+          // Return a basic offline response if no cache
+          return new Response('Offline', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'text/plain' }
+          });
         })
       );
       return;
@@ -100,7 +109,16 @@ self.addEventListener('fetch', (event) => {
   }
   // For non-GET requests, always go to network
   else {
-    event.respondWith(fetch(request));
+    event.respondWith(
+      fetch(request).catch((error) => {
+        console.warn('Non-GET request failed:', error);
+        return new Response('Request failed', {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: { 'Content-Type': 'text/plain' }
+        });
+      })
+    );
   }
 });
 
@@ -176,19 +194,28 @@ async function networkFirst(request) {
   } catch (error) {
     console.log('Network failed, trying cache:', error);
     
-    const cachedResponse = await caches.match(request);
-    if (cachedResponse) {
-      return cachedResponse;
+    try {
+      const cachedResponse = await caches.match(request);
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      
+      // Return offline page for navigation requests
+      if (request.mode === 'navigate') {
+        const indexCache = await caches.match('/index.html');
+        if (indexCache) {
+          return indexCache;
+        }
+      }
+    } catch (cacheError) {
+      console.warn('Cache match failed:', cacheError);
     }
     
-    // Return offline page for navigation requests
-    if (request.mode === 'navigate') {
-      return caches.match('/index.html');
-    }
-    
+    // Always return a valid Response object
     return new Response('Offline content not available', {
       status: 503,
-      statusText: 'Service Unavailable'
+      statusText: 'Service Unavailable',
+      headers: { 'Content-Type': 'text/plain' }
     });
   }
 }
