@@ -18,7 +18,7 @@ export const ResponsiveHeader: React.FC = () => {
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Left Side - Hamburger Menu (Mobile) or Logo */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center">
             {isAuthenticated ? (
               <ResponsiveNav />
             ) : (

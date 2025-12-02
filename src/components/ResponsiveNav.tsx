@@ -57,7 +57,7 @@ export const ResponsiveNav: React.FC = () => {
 
   return (
     <>
-      {/* Mobile Menu Button - Always visible on mobile, hidden on desktop */}
+      {/* Mobile Menu Button - Always visible on mobile, hidden on desktop - MUST BE FIRST */}
       <Button 
         variant="ghost" 
         size="icon"
@@ -66,7 +66,8 @@ export const ResponsiveNav: React.FC = () => {
           WebkitTapHighlightColor: 'transparent',
           touchAction: 'manipulation',
           minWidth: '40px',
-          minHeight: '40px'
+          minHeight: '40px',
+          display: 'flex'
         }}
         onClick={(e) => {
           e.preventDefault();
@@ -175,8 +176,8 @@ export const ResponsiveNav: React.FC = () => {
         </SheetContent>
       </Sheet>
 
-      {/* Desktop Navigation - Hidden on mobile, visible on desktop */}
-      <nav className="hidden md:flex items-center space-x-4">
+      {/* Desktop Navigation - Hidden on mobile, visible on desktop - MUST BE LAST */}
+      <nav className="!hidden md:!flex items-center space-x-4">
       {filteredNavItems.map((item) => {
         const Icon = item.icon;
         const isActive = location.pathname === item.path;
