@@ -56,7 +56,7 @@ export const ResponsiveNav: React.FC = () => {
   }
 
   return (
-    <>
+    <div className="flex items-center">
       {/* Mobile Menu Button - Always visible on mobile, hidden on desktop - MUST BE FIRST */}
       <Button 
         variant="ghost" 
@@ -66,8 +66,7 @@ export const ResponsiveNav: React.FC = () => {
           WebkitTapHighlightColor: 'transparent',
           touchAction: 'manipulation',
           minWidth: '40px',
-          minHeight: '40px',
-          display: 'flex'
+          minHeight: '40px'
         }}
         onClick={(e) => {
           e.preventDefault();
@@ -204,6 +203,6 @@ export const ResponsiveNav: React.FC = () => {
         </Button>
       </div>
     </nav>
-    </>
+    </div>
   );
 };
