@@ -58,7 +58,7 @@ export const ResponsiveNav: React.FC = () => {
   return (
     <>
       {/* Desktop Navigation - Hidden on mobile, visible on desktop */}
-      <nav className="hidden md:flex items-center space-x-4">
+      <nav className="hidden md:flex items-center space-x-2">
       {filteredNavItems.map((item) => {
         const Icon = item.icon;
         const isActive = location.pathname === item.path;
@@ -69,19 +69,32 @@ export const ResponsiveNav: React.FC = () => {
             variant={isActive ? "secondary" : "ghost"}
             size="sm"
             onClick={() => handleNavClick(item.path)}
+            className="group relative transition-all duration-300 hover:scale-105 hover:shadow-md"
           >
-            <Icon className="mr-2 h-4 w-4" />
-            {item.label}
+            <Icon className="mr-2 h-4 w-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3" />
+            <span className="relative z-10">{item.label}</span>
+            {!isActive && (
+              <span className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+            )}
           </Button>
         );
       })}
       
       <div className="flex items-center space-x-2 ml-4 pl-4 border-l">
-        <Button variant="ghost" size="sm">
-          <Bell className="h-4 w-4" />
+        <Button 
+          variant="ghost" 
+          size="sm"
+          className="group relative transition-all duration-300 hover:scale-110 hover:bg-yellow-50 hover:text-yellow-600"
+        >
+          <Bell className="h-4 w-4 transition-transform duration-300 group-hover:animate-pulse" />
         </Button>
-        <Button variant="ghost" size="sm" onClick={handleLogout}>
-          <LogOut className="h-4 w-4" />
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={handleLogout}
+          className="group relative transition-all duration-300 hover:scale-110 hover:bg-red-50 hover:text-red-600"
+        >
+          <LogOut className="h-4 w-4 transition-transform duration-300 group-hover:rotate-12" />
         </Button>
       </div>
     </nav>

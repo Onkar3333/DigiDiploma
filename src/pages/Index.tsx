@@ -329,47 +329,53 @@ const Index = () => {
                 <div className="flex flex-col py-2">
                   <Link 
                     to="/" 
-                    className="px-4 py-3 text-slate-700 hover:bg-blue-50 hover:text-blue-600 font-medium transition-colors"
+                    className="group relative px-4 py-3 text-slate-700 font-medium transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 hover:shadow-sm hover:scale-[1.02] hover:pl-6"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Home
+                    <span className="relative z-10">Home</span>
+                    <span className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
                   </Link>
                   <Link 
                     to="/materials" 
-                    className="px-4 py-3 text-slate-700 hover:bg-blue-50 hover:text-blue-600 font-medium transition-colors"
+                    className="group relative px-4 py-3 text-slate-700 font-medium transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 hover:shadow-sm hover:scale-[1.02] hover:pl-6"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Materials
+                    <span className="relative z-10">Materials</span>
+                    <span className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
                   </Link>
                   <Link 
                     to="/projects" 
-                    className="px-4 py-3 text-slate-700 hover:bg-blue-50 hover:text-blue-600 font-medium transition-colors"
+                    className="group relative px-4 py-3 text-slate-700 font-medium transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 hover:shadow-sm hover:scale-[1.02] hover:pl-6"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Projects
+                    <span className="relative z-10">Projects</span>
+                    <span className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
                   </Link>
                   <a 
                     href="/internship" 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="px-4 py-3 text-slate-700 hover:bg-blue-50 hover:text-blue-600 font-medium transition-colors"
+                    className="group relative px-4 py-3 text-slate-700 font-medium transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 hover:shadow-sm hover:scale-[1.02] hover:pl-6"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Internship
+                    <span className="relative z-10">Internship</span>
+                    <span className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
                   </a>
                   <Link 
                     to="/about" 
-                    className="px-4 py-3 text-slate-700 hover:bg-blue-50 hover:text-blue-600 font-medium transition-colors"
+                    className="group relative px-4 py-3 text-slate-700 font-medium transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 hover:shadow-sm hover:scale-[1.02] hover:pl-6"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    About
+                    <span className="relative z-10">About</span>
+                    <span className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
                   </Link>
                   <Link 
                     to="/contact" 
-                    className="px-4 py-3 text-slate-700 hover:bg-blue-50 hover:text-blue-600 font-medium transition-colors"
+                    className="group relative px-4 py-3 text-slate-700 font-medium transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 hover:shadow-sm hover:scale-[1.02] hover:pl-6"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Contact
+                    <span className="relative z-10">Contact</span>
+                    <span className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
                   </Link>
                   <div className="border-t border-slate-200 mt-2 pt-2 px-4 pb-2">
                     <button
@@ -377,7 +383,7 @@ const Index = () => {
                         setCurrentState('login');
                         setMobileMenuOpen(false);
                       }}
-                      className="w-full mb-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 transition-colors text-sm"
+                      className="w-full mb-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium text-sm transition-all duration-300 hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.98]"
                     >
                       Login
                     </button>
@@ -386,9 +392,9 @@ const Index = () => {
                         window.open('https://chat.whatsapp.com/BXyJ9ykaMnKKyHokiz2lII?mode=hqrt2', '_blank');
                         setMobileMenuOpen(false);
                       }}
-                      className="w-full px-4 py-2.5 border border-green-600 text-green-600 rounded-lg font-medium hover:bg-green-50 transition-colors flex items-center justify-center text-sm"
+                      className="w-full px-4 py-2.5 border border-green-600 text-green-600 rounded-lg font-medium text-sm transition-all duration-300 hover:bg-green-50 hover:border-green-700 hover:text-green-700 hover:shadow-md hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.98] flex items-center justify-center group"
                     >
-                      <MessageCircle className="w-4 h-4 mr-2" />
+                      <MessageCircle className="w-4 h-4 mr-2 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12" />
                       Join Community
                     </button>
                   </div>
