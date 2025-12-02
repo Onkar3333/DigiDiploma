@@ -1224,29 +1224,117 @@ const Projects = () => {
 
       {/* Project Detail Dialog */}
       <Dialog open={showProjectDialog} onOpenChange={setShowProjectDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto p-0">
           {selectedProject && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{selectedProject.title}</DialogTitle>
-                <DialogDescription>{selectedProject.category} • {selectedProject.branch}</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <p>{selectedProject.description}</p>
+            <div className="flex flex-col">
+              {/* Cover Photo Section */}
+              {(selectedProject.coverPhoto || selectedProject.imageUrls?.[0]) && (
+                <div className="relative w-full h-64 md:h-80 overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-100">
+                  <img 
+                    src={getProxyUrl(selectedProject.coverPhoto || selectedProject.imageUrls?.[0] || '')} 
+                    alt={selectedProject.title}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const originalUrl = selectedProject.coverPhoto || selectedProject.imageUrls?.[0];
+                      if (originalUrl && originalUrl !== getProxyUrl(originalUrl)) {
+                        e.currentTarget.src = originalUrl;
+                      }
+                    }}
+                  />
+                  {/* Gradient Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
+                  {/* Title Overlay */}
+                  <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                    <DialogTitle className="text-3xl md:text-4xl font-bold mb-2 drop-shadow-lg">
+                      {selectedProject.title}
+                    </DialogTitle>
+                    <div className="flex flex-wrap items-center gap-3 text-sm md:text-base">
+                      <Badge className="bg-blue-600/90 text-white border-0">
+                        {selectedProject.category}
+                      </Badge>
+                      {selectedProject.projectCategory && (
+                        <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
+                          {selectedProject.projectCategory}
+                        </Badge>
+                      )}
+                      {selectedProject.academicYear && (
+                        <Badge variant="outline" className="bg-white/10 text-white border-white/30">
+                          {selectedProject.academicYear}
+                        </Badge>
+                      )}
+                      <span className="text-white/90">•</span>
+                      <span className="text-white/90">{selectedProject.branch}</span>
+                      {selectedProject.semester && (
+                        <>
+                          <span className="text-white/90">•</span>
+                          <span className="text-white/90">Sem {selectedProject.semester}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Content Section */}
+              <div className="p-6 space-y-6">
+                {/* Header (if no cover photo) */}
+                {!(selectedProject.coverPhoto || selectedProject.imageUrls?.[0]) && (
+                  <DialogHeader className="pb-4 border-b">
+                    <DialogTitle className="text-2xl md:text-3xl font-bold">
+                      {selectedProject.title}
+                    </DialogTitle>
+                    <DialogDescription className="text-base">
+                      <div className="flex flex-wrap items-center gap-3 mt-2">
+                        <Badge>{selectedProject.category}</Badge>
+                        {selectedProject.projectCategory && (
+                          <Badge variant="secondary">{selectedProject.projectCategory}</Badge>
+                        )}
+                        {selectedProject.academicYear && (
+                          <Badge variant="outline">{selectedProject.academicYear}</Badge>
+                        )}
+                        <span>•</span>
+                        <span>{selectedProject.branch}</span>
+                        {selectedProject.semester && (
+                          <>
+                            <span>•</span>
+                            <span>Sem {selectedProject.semester}</span>
+                          </>
+                        )}
+                      </div>
+                    </DialogDescription>
+                  </DialogHeader>
+                )}
+
+                {/* Description */}
+                <div className="prose prose-slate max-w-none">
+                  <p className="text-slate-700 leading-relaxed text-base md:text-lg">
+                    {selectedProject.description}
+                  </p>
+                </div>
+
+                {/* Technologies */}
                 {selectedProject.techStack && selectedProject.techStack.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold mb-2">Technologies:</h4>
+                  <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                    <h4 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                      <Code className="w-5 h-5 text-primary" />
+                      Technologies Used
+                    </h4>
                     <div className="flex flex-wrap gap-2">
                       {selectedProject.techStack.map((tech, i) => (
-                        <Badge key={i}>{tech}</Badge>
+                        <Badge key={i} variant="secondary" className="bg-white text-slate-700 border-slate-300">
+                          {tech}
+                        </Badge>
                       ))}
                     </div>
                   </div>
                 )}
-                <div className="flex gap-2 flex-wrap">
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-3 pt-2">
                   {selectedProject.pdfUrl && (
                     <Button
                       onClick={() => handleDownload(selectedProject)}
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Download PDF
@@ -1254,7 +1342,7 @@ const Projects = () => {
                   )}
                   {selectedProject.githubLink && (
                     <a href={selectedProject.githubLink} target="_blank" rel="noopener noreferrer">
-                      <Button variant="outline">
+                      <Button variant="outline" className="border-slate-300 hover:bg-slate-50 transition-all duration-300">
                         <Github className="w-4 h-4 mr-2" />
                         View on GitHub
                       </Button>
@@ -1262,73 +1350,106 @@ const Projects = () => {
                   )}
                   {selectedProject.demoLink && (
                     <a href={selectedProject.demoLink} target="_blank" rel="noopener noreferrer">
-                      <Button variant="outline">
+                      <Button variant="outline" className="border-slate-300 hover:bg-slate-50 transition-all duration-300">
                         <ExternalLink className="w-4 h-4 mr-2" />
                         View Demo
                       </Button>
                     </a>
                   )}
-                {selectedProject.simulationLink && (
-                  <a href={selectedProject.simulationLink} target="_blank" rel="noopener noreferrer">
-                    <Button variant="outline">
-                      <ExternalLink className="w-4 h-4 mr-2" />
-                      Simulation
+                  {selectedProject.simulationLink && (
+                    <a href={selectedProject.simulationLink} target="_blank" rel="noopener noreferrer">
+                      <Button variant="outline" className="border-slate-300 hover:bg-slate-50 transition-all duration-300">
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Simulation
                       </Button>
                     </a>
                   )}
                 </div>
+                {/* Screenshots Gallery */}
                 {selectedProject.imageUrls && selectedProject.imageUrls.length > 0 && (
-                  <div className="grid grid-cols-2 gap-2">
-                    {selectedProject.imageUrls.map((url, i) => {
-                      const proxyUrl = getProxyUrl(url);
-                      return (
-                        <img 
-                          key={i} 
-                          src={proxyUrl} 
-                          alt={`Screenshot ${i + 1}`} 
-                          className="rounded"
-                          onError={(e) => {
-                            // Fallback: try original URL if proxy fails
-                            if (url !== proxyUrl) {
-                              e.currentTarget.src = url;
-                            }
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-                {selectedProject.videoUrl && (
-                  <div className="w-full">
-                    {(() => {
-                      const embedUrl = getYouTubeEmbedUrl(selectedProject.videoUrl);
-                      if (embedUrl) {
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+                      <ImageIcon className="w-5 h-5 text-primary" />
+                      Screenshots
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {selectedProject.imageUrls.map((url, i) => {
+                        const proxyUrl = getProxyUrl(url);
                         return (
-                  <iframe
-                            src={embedUrl}
-                    className="w-full h-64 rounded"
-                    allowFullScreen
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            title="Project video"
-                          />
+                          <div key={i} className="relative group overflow-hidden rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow duration-300">
+                            <img 
+                              src={proxyUrl} 
+                              alt={`Screenshot ${i + 1}`} 
+                              className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                              onError={(e) => {
+                                // Fallback: try original URL if proxy fails
+                                if (url !== proxyUrl) {
+                                  e.currentTarget.src = url;
+                                }
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300"></div>
+                          </div>
                         );
-                      }
-                      // If not YouTube, try as direct video URL
-                      return (
-                        <video 
-                          src={(() => {
-                            const normalized = normalizeBackendUrl(selectedProject.videoUrl || '');
-                            return normalized.startsWith('http') ? normalized : `${window.location.origin}${normalized}`;
-                          })()}
-                          controls 
-                          className="w-full h-64 rounded"
-                        >
-                          Your browser does not support the video tag.
-                        </video>
-                      );
-                    })()}
+                      })}
+                    </div>
                   </div>
                 )}
+                {/* Video Section */}
+                {selectedProject.videoUrl && (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+                      <Video className="w-5 h-5 text-primary" />
+                      Project Video
+                    </h4>
+                    <div className="w-full rounded-lg overflow-hidden border border-slate-200 shadow-sm">
+                      {(() => {
+                        const embedUrl = getYouTubeEmbedUrl(selectedProject.videoUrl);
+                        if (embedUrl) {
+                          return (
+                            <iframe
+                              src={embedUrl}
+                              className="w-full h-64 md:h-96"
+                              allowFullScreen
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              title="Project video"
+                            />
+                          );
+                        }
+                        // If not YouTube, try as direct video URL
+                        return (
+                          <video 
+                            src={(() => {
+                              const normalized = normalizeBackendUrl(selectedProject.videoUrl || '');
+                              return normalized.startsWith('http') ? normalized : `${window.location.origin}${normalized}`;
+                            })()}
+                            controls 
+                            className="w-full h-64 md:h-96"
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Project Info Footer */}
+                {selectedProject.studentName && (
+                  <div className="pt-4 border-t border-slate-200 flex items-center justify-between text-sm text-slate-600">
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      <span>By: <span className="font-semibold text-slate-800">{selectedProject.studentName}</span></span>
+                    </div>
+                    {selectedProject.createdAt && (
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4" />
+                        <span>{new Date(selectedProject.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               </div>
             </>
           )}
