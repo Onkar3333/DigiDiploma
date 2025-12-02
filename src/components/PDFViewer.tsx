@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Progress } from './ui/progress';
 import { Bookmark, BookmarkCheck, Download, ZoomIn, ZoomOut, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
+import { normalizeBackendUrl } from '@/lib/urlUtils';
 
 interface PDFViewerProps {
   url: string;
@@ -46,15 +47,18 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
       return '';
     }
     
+    // FIRST: Normalize any localhost URLs to relative paths
+    const normalizedUrl = normalizeBackendUrl(originalUrl);
+    
     // If already using proxy, return as is
-    if (originalUrl.includes('/api/materials/proxy/')) {
-      return originalUrl;
+    if (normalizedUrl.includes('/api/materials/proxy/')) {
+      return normalizedUrl;
     }
     
     // Check if it's an R2 URL
-    if (originalUrl.includes('r2.cloudflarestorage.com')) {
+    if (normalizedUrl.includes('r2.cloudflarestorage.com')) {
       try {
-        const urlObj = new URL(originalUrl);
+        const urlObj = new URL(normalizedUrl);
         const pathParts = urlObj.pathname.split('/').filter(Boolean);
         
         // R2 URLs format: https://{account_id}.r2.cloudflarestorage.com/{bucket}/{key}
@@ -75,25 +79,25 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         if (key) {
           // Use relative URL so Vercel can proxy it correctly
           const proxyUrl = `/api/materials/proxy/r2/${encodeURIComponent(key)}`;
-          console.log('PDFViewer: Converting R2 URL to proxy:', originalUrl, '->', proxyUrl);
+          console.log('PDFViewer: Converting R2 URL to proxy:', normalizedUrl, '->', proxyUrl);
           return proxyUrl;
         }
       } catch (e) {
-        console.warn('PDFViewer: Failed to parse R2 URL:', e, originalUrl);
+        console.warn('PDFViewer: Failed to parse R2 URL:', e, normalizedUrl);
       }
     }
     
     // If relative URL, make it absolute
-    if (originalUrl.startsWith('/')) {
-      return `${window.location.origin}${originalUrl}`;
+    if (normalizedUrl.startsWith('/')) {
+      return `${window.location.origin}${normalizedUrl}`;
     }
     
     // If not starting with http, add origin
-    if (!originalUrl.startsWith('http://') && !originalUrl.startsWith('https://')) {
-      return `${window.location.origin}/${originalUrl}`;
+    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+      return `${window.location.origin}/${normalizedUrl}`;
     }
     
-    return originalUrl;
+    return normalizedUrl;
   };
 
   const proxyUrl = getProxyUrl(url);

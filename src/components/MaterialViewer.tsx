@@ -8,6 +8,7 @@ import PDFViewer from './PDFViewer';
 import VideoPlayer from './VideoPlayer';
 import { toast } from 'sonner';
 import { authService } from '@/lib/auth';
+import { normalizeBackendUrl } from '@/lib/urlUtils';
 
 interface Material {
   id: string;
@@ -120,15 +121,18 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
       return '';
     }
     
+    // FIRST: Normalize any localhost URLs to relative paths
+    const normalizedUrl = normalizeBackendUrl(url);
+    
     // If already absolute (starts with http:// or https://), return as is
-    if (url.startsWith('http://') || url.startsWith('https://')) {
+    if (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://')) {
       // Check if it's an R2 URL that might have authorization issues
       // R2 URLs can be in format: https://{account_id}.r2.cloudflarestorage.com/{bucket}/{key}
       // or: https://{bucket}.{account_id}.r2.cloudflarestorage.com/{key}
-      if (url.includes('r2.cloudflarestorage.com') && !url.includes('/api/materials/proxy/')) {
+      if (normalizedUrl.includes('r2.cloudflarestorage.com') && !normalizedUrl.includes('/api/materials/proxy/')) {
         // Extract the key from R2 URL and use proxy endpoint
         try {
-          const urlObj = new URL(url);
+          const urlObj = new URL(normalizedUrl);
           const pathParts = urlObj.pathname.split('/').filter(Boolean);
           
           // Handle different R2 URL formats
@@ -145,26 +149,26 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
           if (key) {
             // Use relative URL so Vercel can proxy it correctly
             const proxyUrl = `/api/materials/proxy/r2/${encodeURIComponent(key)}`;
-            console.log('Converting R2 URL to proxy:', url, '->', proxyUrl);
+            console.log('Converting R2 URL to proxy:', normalizedUrl, '->', proxyUrl);
             return proxyUrl;
           }
         } catch (e) {
-          console.warn('Failed to parse R2 URL, using original:', e);
+          console.warn('Failed to parse R2 URL, using normalized:', e);
         }
       }
-      return url;
+      return normalizedUrl;
     }
     
     // If relative, make it absolute using current origin
-    if (url.startsWith('/')) {
-      const absoluteUrl = `${window.location.origin}${url}`;
-      console.log('Converted relative URL to absolute:', url, '->', absoluteUrl);
+    if (normalizedUrl.startsWith('/')) {
+      const absoluteUrl = `${window.location.origin}${normalizedUrl}`;
+      console.log('Converted relative URL to absolute:', normalizedUrl, '->', absoluteUrl);
       return absoluteUrl;
     }
     
     // If no leading slash, add it
-    const absoluteUrl = `${window.location.origin}/${url}`;
-    console.log('Added leading slash to URL:', url, '->', absoluteUrl);
+    const absoluteUrl = `${window.location.origin}/${normalizedUrl}`;
+    console.log('Added leading slash to URL:', normalizedUrl, '->', absoluteUrl);
     return absoluteUrl;
   };
 

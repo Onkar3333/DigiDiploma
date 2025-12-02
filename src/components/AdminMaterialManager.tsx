@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { normalizeMaterialUrls } from '@/lib/urlUtils';
+import { normalizeMaterialUrls, normalizeBackendUrl } from '@/lib/urlUtils';
 import { 
   Plus, 
   Upload, 
@@ -1691,7 +1691,10 @@ const AdminMaterialManager = () => {
 
               {previewMaterial.type === 'pdf' && (
                 <iframe
-                  src={previewMaterial.url.startsWith('http') ? previewMaterial.url : `${window.location.origin}${previewMaterial.url}`}
+                  src={(() => {
+                    const normalized = normalizeBackendUrl(previewMaterial.url);
+                    return normalized.startsWith('http') ? normalized : `${window.location.origin}${normalized}`;
+                  })()}
                   className="w-full h-96 border rounded"
                   title={previewMaterial.title}
                 />
@@ -1699,20 +1702,24 @@ const AdminMaterialManager = () => {
 
               {previewMaterial.type === 'video' && (
                 <div className="w-full">
-                  {previewMaterial.url.includes('youtube.com') || previewMaterial.url.includes('youtu.be') ? (
-                    <iframe
-                      src={previewMaterial.url.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')}
-                      className="w-full h-96 border rounded"
-                      allowFullScreen
-                      title={previewMaterial.title}
-                    />
-                  ) : (
-                    <video
-                      src={previewMaterial.url}
-                      controls
-                      className="w-full h-96 border rounded"
-                    />
-                  )}
+                  {(() => {
+                    const normalized = normalizeBackendUrl(previewMaterial.url);
+                    const isYouTube = normalized.includes('youtube.com') || normalized.includes('youtu.be');
+                    return isYouTube ? (
+                      <iframe
+                        src={normalized.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')}
+                        className="w-full h-96 border rounded"
+                        allowFullScreen
+                        title={previewMaterial.title}
+                      />
+                    ) : (
+                      <video
+                        src={normalized.startsWith('http') ? normalized : `${window.location.origin}${normalized}`}
+                        controls
+                        className="w-full h-96 border rounded"
+                      />
+                    );
+                  })()}
                 </div>
               )}
 
@@ -1720,7 +1727,7 @@ const AdminMaterialManager = () => {
                 <div className="border rounded p-4 bg-slate-50">
                   <p className="text-sm text-slate-600 mb-2">Notes content will be displayed here</p>
                   <a
-                    href={previewMaterial.url}
+                    href={normalizeBackendUrl(previewMaterial.url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:underline flex items-center gap-2"
@@ -1734,13 +1741,13 @@ const AdminMaterialManager = () => {
               {previewMaterial.type === 'link' && (
                 <div className="border rounded p-4 bg-slate-50">
                   <a
-                    href={previewMaterial.url}
+                    href={normalizeBackendUrl(previewMaterial.url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:underline flex items-center gap-2"
                   >
                     <ExternalLink className="w-4 h-4" />
-                    {previewMaterial.url}
+                    {normalizeBackendUrl(previewMaterial.url)}
                   </a>
                 </div>
               )}
