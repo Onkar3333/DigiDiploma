@@ -36,6 +36,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { ALL_BRANCHES } from '@/constants/branches';
 import { initializePayment, RazorpayResponse } from '@/lib/razorpay';
+import { normalizeBackendUrl } from '@/lib/urlUtils';
 import { IndianRupee, Lock, QrCode, CreditCard } from 'lucide-react';
 
 const AVAILABLE_BRANCHES = [...ALL_BRANCHES];
@@ -358,7 +359,8 @@ const Materials = () => {
               
               return {
                 ...m,
-                url: validUrl,
+                // Normalize backend URLs so localhost/dev URLs become valid relative URLs in production
+                url: normalizeBackendUrl(validUrl),
                 downloads: m.downloads ?? 0,
                 rating: m.rating ?? 0,
                 ratingCount: m.ratingCount ?? 0,
@@ -418,7 +420,8 @@ const Materials = () => {
           
           return {
             ...m,
-            url: validUrl,
+            // Normalize backend URLs so localhost/dev URLs become valid relative URLs in production
+            url: normalizeBackendUrl(validUrl),
             downloads: m.downloads ?? 0,
             rating: m.rating ?? 0,
             ratingCount: m.ratingCount ?? 0,
