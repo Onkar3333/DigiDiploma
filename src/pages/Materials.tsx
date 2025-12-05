@@ -26,7 +26,8 @@ import {
   FolderOpen,
   Calendar,
   User,
-  Star
+  Star,
+  CheckCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '@/lib/auth';
@@ -748,24 +749,82 @@ const Materials = () => {
 
       const orderData = await orderResponse.json();
 
+      console.log('📦 Order data received from server:', {
+        hasOrderId: !!orderData.orderId,
+        hasAmount: !!orderData.amount,
+        hasKeyId: !!orderData.keyId,
+        hasCurrency: !!orderData.currency,
+        orderIdType: typeof orderData.orderId,
+        amountType: typeof orderData.amount,
+        keyIdType: typeof orderData.keyId
+      });
+
       // Validate order data
       if (!orderData.orderId || !orderData.amount || !orderData.keyId) {
-        console.error('Invalid order data received:', orderData);
+        console.error('❌ Invalid order data received:', {
+          orderId: orderData.orderId,
+          amount: orderData.amount,
+          keyId: orderData.keyId ? 'present' : 'missing',
+          fullData: orderData
+        });
         throw new Error('Invalid order data received from server');
       }
 
       // Ensure orderId is a string and amount is a number
-      const orderId = String(orderData.orderId);
+      const orderId = String(orderData.orderId).trim();
       const amount = Number(orderData.amount);
-      const currency = orderData.currency || 'INR';
-      const keyId = String(orderData.keyId);
+      const currency = (orderData.currency || 'INR').trim();
+      const keyId = String(orderData.keyId).trim();
 
-      if (!orderId || !amount || !keyId) {
-        console.error('Missing required order fields:', { orderId, amount, keyId });
-        throw new Error('Missing required payment information');
+      // Additional validation
+      if (!orderId || orderId.length < 10) {
+        console.error('❌ Invalid order ID:', { orderId, length: orderId.length });
+        throw new Error('Invalid order ID received from server');
       }
 
+      if (!amount || amount <= 0 || !Number.isInteger(amount)) {
+        console.error('❌ Invalid amount:', { amount, type: typeof amount, isInteger: Number.isInteger(amount) });
+        throw new Error('Invalid payment amount received from server');
+      }
+
+      if (!keyId || (!keyId.startsWith('rzp_live_') && !keyId.startsWith('rzp_test_'))) {
+        console.error('❌ Invalid key ID format:', { 
+          keyId: keyId.substring(0, 20) + '...', 
+          length: keyId.length,
+          startsWithRzp: keyId.startsWith('rzp_')
+        });
+        throw new Error('Invalid Razorpay key ID format');
+      }
+
+      console.log('✅ Order data validated:', {
+        orderId: orderId.substring(0, 20) + '...',
+        orderIdFull: orderId, // Log full order ID for debugging
+        amount: amount,
+        amountInRupees: (amount / 100).toFixed(2),
+        currency: currency,
+        keyIdPrefix: keyId.substring(0, 12) + '...',
+        orderStatus: orderData.orderStatus || 'unknown'
+      });
+
+      // Additional validation: Ensure order ID starts with 'order_'
+      if (!orderId.startsWith('order_')) {
+        console.error('❌ Order ID does not start with "order_":', orderId);
+        toast({ 
+          title: "Invalid Order", 
+          description: "Order ID format is incorrect. Please try again.",
+          variant: "destructive" 
+        });
+        return;
+      }
+
+      // Small delay to ensure order is fully propagated in Razorpay's system
+      // This is important for Razorpay's v2 API which may have propagation delays
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      console.log('⏳ Order propagation delay completed, initializing payment...');
+
       // Initialize Razorpay payment
+      console.log('🔄 Calling initializePayment with validated data...');
       const paymentResponse: RazorpayResponse = await initializePayment(
         orderId,
         amount,
@@ -775,6 +834,8 @@ const Materials = () => {
         user?.name,
         user?.email
       );
+
+      console.log('✅ Payment initialized successfully, verifying...');
 
       // Verify payment
       const verifyResponse = await fetch('/api/payments/verify-payment', {
@@ -829,13 +890,24 @@ const Materials = () => {
         }, 1000);
       }
     } catch (error: any) {
-      console.error('Payment error:', error);
+      console.error('❌ Payment processing error:', {
+        error: error,
+        message: error?.message,
+        stack: error?.stack
+      });
+      
       if (error.message !== 'Payment cancelled by user') {
         let errorMessage = error.message || "Failed to process payment. Please try again.";
         
-        // Check if it's a payment configuration error
-        if (error.message?.includes('not configured') || error.message?.includes('503') || error.message?.includes('Service Unavailable')) {
+        // Check for specific Razorpay errors
+        if (error.message?.includes('400') || error.message?.includes('Bad Request')) {
+          errorMessage = "Invalid payment request. The order may be invalid or expired. Please try again or contact support if the issue persists.";
+        } else if (error.message?.includes('not configured') || error.message?.includes('503') || error.message?.includes('Service Unavailable')) {
           errorMessage = "Payment service is not configured. Please contact the administrator to enable payments.";
+        } else if (error.message?.includes('Invalid order') || error.message?.includes('order_id')) {
+          errorMessage = "The payment order is invalid. Please try creating a new order.";
+        } else if (error.message?.includes('key') || error.message?.includes('Razorpay key')) {
+          errorMessage = "Payment gateway configuration error. Please contact support.";
         }
         
         toast({ 
@@ -1043,38 +1115,217 @@ const Materials = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      {/* Header */}
-      <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-sm">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between py-4">
-            <div className="flex items-center gap-4">
-            <Button
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 pb-16 md:pb-0">
+      {/* Top Header - mobile-first, responsive */}
+      <div className="sticky top-0 z-50 bg-white/90 backdrop-blur-xl border-b border-white/20 shadow-sm">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex items-center justify-between py-3 md:py-4">
+            <div className="flex items-center gap-3 md:gap-4">
+              <Button
                 variant="ghost"
-              size="sm"
+                size="sm"
                 onClick={() => navigate('/student-dashboard')}
-                className="text-blue-600 hover:text-blue-700 bg-blue-500/10 backdrop-blur-sm border-2 border-cyan-400/50 ring-2 ring-cyan-400/30 hover:ring-cyan-400/50 transition-all"
-            >
-              <ArrowLeft className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">Back to Dashboard</span>
-            </Button>
+                className="hidden sm:inline-flex text-blue-600 hover:text-blue-700 bg-blue-500/10 backdrop-blur-sm border border-blue-200 hover:border-blue-400 rounded-full px-3"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                <span>Dashboard</span>
+              </Button>
               <div className="flex items-center gap-3">
                 <img
                   src="/icons/android-chrome-512x512.png"
                   alt="DigiDiploma logo"
-                  className="w-10 h-10 rounded-xl object-contain"
+                  className="w-9 h-9 md:w-10 md:h-10 rounded-xl object-contain"
                 />
-                <div>
-                  <h1 className="text-xl font-bold text-slate-800">Study Materials</h1>
-                  <p className="text-sm text-slate-600">Browse materials by branch, semester, and subject</p>
+                <div className="min-w-0">
+                  <h1 className="text-lg md:text-xl font-bold text-slate-900 leading-tight">
+                    Study Materials
+                  </h1>
+                  <p className="text-[11px] md:text-xs text-slate-500 truncate">
+                    {selectedBranch || user?.branch || 'Select Branch'}{" "}
+                    {selectedSemester ? `• Sem ${selectedSemester}` : ''}
+                  </p>
                 </div>
-          </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="inline-flex sm:hidden rounded-full px-3 text-xs"
+                onClick={() => navigate('/student-dashboard')}
+              >
+                <ArrowLeft className="w-3 h-3 mr-1" />
+                Home
+              </Button>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8">
+      <div id="materials-main" className="max-w-6xl mx-auto px-4 py-6 md:py-8">
+        {/* Mobile quick-access cards */}
+        <div className="grid grid-cols-2 gap-3 mb-6 md:hidden relative z-10">
+          <Card
+            className="border-0 bg-white/90 shadow-sm rounded-2xl active:scale-[0.97] transition-transform cursor-pointer select-none touch-manipulation"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (user?.branch) {
+                setSelectedBranch(user.branch);
+              }
+              if (user?.semester) {
+                const sem = parseInt(String(user.semester));
+                if (!Number.isNaN(sem)) {
+                  setSelectedSemester(sem);
+                }
+              }
+              // Smooth scroll to main materials section
+              setTimeout(() => {
+                const main = document.getElementById('materials-main');
+                if (main) {
+                  main.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }, 100);
+            }}
+            onTouchStart={(e) => {
+              e.currentTarget.style.transform = 'scale(0.97)';
+            }}
+            onTouchEnd={(e) => {
+              e.currentTarget.style.transform = '';
+            }}
+          >
+            <CardContent className="p-3 flex items-center gap-3 pointer-events-none">
+              <div className="w-9 h-9 rounded-xl bg-blue-500 flex items-center justify-center text-white pointer-events-none">
+                <BookOpen className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 pointer-events-none">
+                <p className="text-xs text-slate-500">My</p>
+                <p className="text-sm font-semibold text-slate-900 truncate">Subjects</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="border-0 bg-white/90 shadow-sm rounded-2xl active:scale-[0.97] transition-transform cursor-pointer select-none touch-manipulation"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setSelectedCategory('pyqs');
+              // Ensure branch/semester from user if not already selected
+              if (!selectedBranch && user?.branch) {
+                setSelectedBranch(user.branch);
+              }
+              if (!selectedSemester && user?.semester) {
+                const sem = parseInt(String(user.semester));
+                if (!Number.isNaN(sem)) {
+                  setSelectedSemester(sem);
+                }
+              }
+              setTimeout(() => {
+                const main = document.getElementById('materials-main');
+                if (main) {
+                  main.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }, 100);
+            }}
+            onTouchStart={(e) => {
+              e.currentTarget.style.transform = 'scale(0.97)';
+            }}
+            onTouchEnd={(e) => {
+              e.currentTarget.style.transform = '';
+            }}
+          >
+            <CardContent className="p-3 flex items-center gap-3 pointer-events-none">
+              <div className="w-9 h-9 rounded-xl bg-indigo-500 flex items-center justify-center text-white pointer-events-none">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 pointer-events-none">
+                <p className="text-xs text-slate-500">Quick Access</p>
+                <p className="text-sm font-semibold text-slate-900 truncate">PYQ</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="border-0 bg-white/90 shadow-sm rounded-2xl active:scale-[0.97] transition-transform cursor-pointer select-none touch-manipulation"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setSelectedCategory('model_answer_papers');
+              if (!selectedBranch && user?.branch) {
+                setSelectedBranch(user.branch);
+              }
+              if (!selectedSemester && user?.semester) {
+                const sem = parseInt(String(user.semester));
+                if (!Number.isNaN(sem)) {
+                  setSelectedSemester(sem);
+                }
+              }
+              setTimeout(() => {
+                const main = document.getElementById('materials-main');
+                if (main) {
+                  main.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }, 100);
+            }}
+            onTouchStart={(e) => {
+              e.currentTarget.style.transform = 'scale(0.97)';
+            }}
+            onTouchEnd={(e) => {
+              e.currentTarget.style.transform = '';
+            }}
+          >
+            <CardContent className="p-3 flex items-center gap-3 pointer-events-none">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center text-white pointer-events-none">
+                <CheckCircle className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 pointer-events-none">
+                <p className="text-xs text-slate-500">Quick Access</p>
+                <p className="text-sm font-semibold text-slate-900 truncate">Model Answers</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="border-0 bg-white/90 shadow-sm rounded-2xl active:scale-[0.97] transition-transform cursor-pointer select-none touch-manipulation"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setSelectedCategory('notes');
+              if (!selectedBranch && user?.branch) {
+                setSelectedBranch(user.branch);
+              }
+              if (!selectedSemester && user?.semester) {
+                const sem = parseInt(String(user.semester));
+                if (!Number.isNaN(sem)) {
+                  setSelectedSemester(sem);
+                }
+              }
+              setTimeout(() => {
+                const main = document.getElementById('materials-main');
+                if (main) {
+                  main.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }, 100);
+            }}
+            onTouchStart={(e) => {
+              e.currentTarget.style.transform = 'scale(0.97)';
+            }}
+            onTouchEnd={(e) => {
+              e.currentTarget.style.transform = '';
+            }}
+          >
+            <CardContent className="p-3 flex items-center gap-3 pointer-events-none">
+              <div className="w-9 h-9 rounded-xl bg-rose-500 flex items-center justify-center text-white pointer-events-none">
+                <Archive className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 pointer-events-none">
+                <p className="text-xs text-slate-500">Quick Access</p>
+                <p className="text-sm font-semibold text-slate-900 truncate">Notes / PDFs</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
         {/* Navigation Breadcrumb */}
         {selectedBranch && (
           <div className="mb-6 flex items-center gap-2 text-sm text-slate-600 flex-wrap">
@@ -1137,7 +1388,7 @@ const Materials = () => {
                 {user?.branch ? `Your branch: ${user.branch} (or select a different branch)` : 'Choose your branch to view study materials'}
               </p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {AVAILABLE_BRANCHES.map((branch) => (
                 <Card
                   key={branch}
@@ -1393,6 +1644,7 @@ const Materials = () => {
               <div className="relative max-w-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
+                  id="materials-search-input"
                   placeholder="Search materials..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -1658,6 +1910,46 @@ const Materials = () => {
             </DialogContent>
           </Dialog>
         )}
+      </div>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white/95 border-t border-slate-200 shadow-[0_-4px_12px_rgba(15,23,42,0.05)]">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex items-center justify-between py-2">
+            <button
+              className="flex flex-col items-center justify-center flex-1 gap-0.5 text-xs text-slate-600"
+              onClick={() => navigate('/student-dashboard')}
+            >
+              <GraduationCap className="w-5 h-5 mb-0.5" />
+              <span>Home</span>
+            </button>
+            <button
+              className="flex flex-col items-center justify-center flex-1 gap-0.5 text-xs text-blue-600"
+              onClick={() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            >
+              <BookOpen className="w-5 h-5 mb-0.5" />
+              <span>Subjects</span>
+            </button>
+            <button
+              className="flex flex-col items-center justify-center flex-1 gap-0.5 text-xs text-slate-600"
+              onClick={() => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            >
+              <Search className="w-5 h-5 mb-0.5" />
+              <span>Search</span>
+            </button>
+            <button
+              className="flex flex-col items-center justify-center flex-1 gap-0.5 text-xs text-slate-600"
+              onClick={() => navigate('/profile')}
+            >
+              <User className="w-5 h-5 mb-0.5" />
+              <span>Profile</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

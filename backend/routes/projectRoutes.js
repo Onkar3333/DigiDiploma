@@ -371,7 +371,103 @@ router.post("/create", authenticateToken, async (req, res) => {
   }
 });
 
-// Get all projects (with optional filters)
+// Get public projects (no authentication required)
+// Returns both public admin projects and approved student projects
+router.get("/public", async (req, res) => {
+  try {
+    const { 
+      category, branch, semester, 
+      page = 1, limit = 20 
+    } = req.query;
+    const pageNum = Number.parseInt(page, 10) || 1;
+    const limitNum = Number.parseInt(limit, 10) || 20;
+
+    // Fetch approved projects (both admin and student)
+    const { projects: fetchedProjects } = await listProjects({
+      status: 'approved',
+      branch,
+      semester,
+      category,
+      page: pageNum,
+      limit: limitNum,
+    });
+
+    let projects = Array.isArray(fetchedProjects) ? [...fetchedProjects] : [];
+    
+    // Return:
+    // 1. Public admin projects
+    // 2. Approved student projects (for sharing)
+    projects = projects.filter(p => 
+      (p.isAdminProject && p.isPublic && p.status === 'approved') ||
+      (!p.isAdminProject && p.status === 'approved')
+    );
+
+    const totalFiltered = projects.length;
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = startIndex + limitNum;
+    const paginatedProjects = projects.slice(startIndex, endIndex);
+    
+    res.status(200).json({
+      projects: paginatedProjects,
+      pagination: {
+        current: pageNum,
+        total: Math.ceil(totalFiltered / limitNum),
+        count: paginatedProjects.length,
+        totalProjects: totalFiltered
+      }
+    });
+  } catch (err) {
+    console.error("Error fetching public projects:", err);
+    res.status(500).json({ error: "Failed to fetch projects" });
+  }
+});
+
+// Get a specific public project by ID (no authentication required)
+// Allows sharing of both admin projects and approved student projects
+router.get("/:id/public", async (req, res) => {
+  try {
+    let project;
+    if (MongoProject.isReady()) {
+      project = await MongoProject.findById(req.params.id);
+    } else {
+      const projects = readLocalProjects();
+      project = projects.find(p => p.id === req.params.id);
+    }
+
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    
+    // Allow public access to:
+    // 1. Admin projects that are public and approved
+    // 2. Student projects that are approved (for sharing)
+    const isPublicAdminProject = project.isAdminProject && project.isPublic && project.status === 'approved';
+    const isApprovedStudentProject = !project.isAdminProject && project.status === 'approved';
+    
+    if (!isPublicAdminProject && !isApprovedStudentProject) {
+      return res.status(403).json({ error: "This project is not publicly available" });
+    }
+
+    // Increment views
+    if (MongoProject.isReady()) {
+      project = await MongoProject.recordView(req.params.id);
+    } else {
+      const projects = readLocalProjects();
+      const idx = projects.findIndex(p => p.id === req.params.id);
+      if (idx !== -1) {
+        projects[idx].views = (projects[idx].views || 0) + 1;
+        writeLocalProjects(projects);
+        project = projects[idx];
+      }
+    }
+
+    project = transformProjectRecord(project);
+    res.status(200).json(project);
+  } catch (err) {
+    console.error("Error fetching public project:", err);
+    res.status(500).json({ error: "Failed to fetch project" });
+  }
+});
+
+// Get all projects (with optional filters) - requires authentication
 router.get("/", authenticateToken, async (req, res) => {
   try {
     const { 

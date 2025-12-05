@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import MobileBottomNav from "@/components/MobileBottomNav";
 import NotificationHandler from "@/components/NotificationHandler";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { useServiceWorker } from "@/hooks/useServiceWorker";
@@ -69,6 +70,7 @@ const App = () => {
             <PWAInstallPrompt />
             <BrowserRouter>
             <MaintenanceGate>
+              <>
               <Routes>
             <Route path="/" element={<Index />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
@@ -123,6 +125,7 @@ const App = () => {
             <Route path="/branch/:branchName" element={<BranchSubjectsPage />} />
             <Route path="/materials" element={<Materials />} />
             <Route path="/projects" element={<Projects />} />
+            <Route path="/projects/:id" element={<Projects />} />
             <Route 
               path="/profile" 
               element={
@@ -133,6 +136,8 @@ const App = () => {
             />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            <MobileBottomNav />
+            </>
             </MaintenanceGate>
           </BrowserRouter>
         </AuthProvider>

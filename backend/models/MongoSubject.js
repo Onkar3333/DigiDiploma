@@ -5,13 +5,14 @@ import FirebaseSubject from './FirebaseSubject.js'; // Fallback
 const subjectSchema = new mongoose.Schema({
   name: { type: String, required: true },
   code: { type: String, required: true }, // Removed unique: true - code is unique per branch, not globally
-  branch: { type: String, required: true, index: true },
+  branch: { type: String, required: false, index: true }, // Optional for common subjects
   semester: { type: Number, required: true, index: true },
   credits: { type: Number, default: 4 },
   hours: { type: Number, default: 60 },
   type: { type: String, default: 'Theory' },
   description: { type: String, default: '' },
   isActive: { type: Boolean, default: true, index: true },
+  isCommon: { type: Boolean, default: false, index: true }, // New: indicates if subject is common across all branches
 }, {
   timestamps: true
 });
@@ -39,6 +40,7 @@ class MongoSubject {
     this.type = data.type || 'Theory';
     this.description = data.description || '';
     this.isActive = data.isActive !== undefined ? data.isActive : true;
+    this.isCommon = data.isCommon !== undefined ? data.isCommon : false;
     this.createdAt = data.createdAt;
     this.updatedAt = data.updatedAt;
   }

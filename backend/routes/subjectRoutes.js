@@ -45,7 +45,8 @@ router.get("/", authenticateToken, async (req, res) => {
       hours: subject.hours,
       type: subject.type,
       description: subject.description || '',
-      isActive: subject.isActive !== undefined ? subject.isActive : true
+      isActive: subject.isActive !== undefined ? subject.isActive : true,
+      isCommon: subject.isCommon !== undefined ? subject.isCommon : false
     }));
     res.status(200).json(formattedSubjects);
   } catch (err) {
@@ -107,7 +108,8 @@ router.get("/branch/:branch", authenticateToken, async (req, res) => {
         hours: subject.hours,
         type: subject.type,
         description: subject.description || '',
-        isActive: subject.isActive !== undefined ? subject.isActive : true
+        isActive: subject.isActive !== undefined ? subject.isActive : true,
+        isCommon: subject.isCommon !== undefined ? subject.isCommon : false
       });
     });
     
@@ -440,6 +442,43 @@ router.get("/branches/:branch/semesters", authenticateToken, async (req, res) =>
     // Return fallback semesters on error
     const defaultSemesters = [1, 2, 3, 4, 5, 6];
     res.status(200).json(defaultSemesters);
+  }
+});
+
+// Get common subjects (isCommon = true)
+router.get("/common", authenticateToken, async (req, res) => {
+  try {
+    const { semester } = req.query;
+    
+    let filter = { isCommon: true };
+    if (semester) {
+      filter.semester = parseInt(semester);
+    }
+    
+    const commonSubjects = await Subject.find(filter, { orderBy: false });
+    
+    // Sort by semester and name
+    commonSubjects.sort((a, b) => {
+      if (a.semester !== b.semester) return a.semester - b.semester;
+      return a.name.localeCompare(b.name);
+    });
+    
+    // Format response with subjectId, subjectName, and subjectCode
+    const formattedSubjects = commonSubjects.map(subject => ({
+      subjectId: subject.id || subject._id,
+      subjectName: subject.name,
+      subjectCode: subject.code,
+      semester: subject.semester,
+      branch: subject.branch || null, // Optional for common subjects
+      isCommon: true
+    }));
+    
+    console.log(`📚 GET /api/subjects/common - Semester: ${semester || 'all'}, Found: ${formattedSubjects.length} common subjects`);
+    
+    res.status(200).json(formattedSubjects);
+  } catch (err) {
+    console.error("Error fetching common subjects:", err);
+    res.status(500).json({ error: "Failed to fetch common subjects" });
   }
 });
 

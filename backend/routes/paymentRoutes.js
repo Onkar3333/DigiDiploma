@@ -43,6 +43,67 @@ try {
   console.error("   Error details:", error.message);
 }
 
+// Verify order exists in Razorpay (for debugging and validation)
+router.get("/verify-order/:orderId", authenticateToken, async (req, res) => {
+  try {
+    if (!razorpayInstance) {
+      return res.status(503).json({ 
+        error: "Payment service is not configured" 
+      });
+    }
+
+    const { orderId } = req.params;
+    
+    if (!orderId || !orderId.startsWith('order_')) {
+      return res.status(400).json({ 
+        error: "Invalid order ID format",
+        details: "Order ID must start with 'order_'"
+      });
+    }
+
+    try {
+      const order = await razorpayInstance.orders.fetch(orderId);
+      
+      console.log('✅ Order verified in Razorpay:', {
+        orderId: order.id,
+        status: order.status,
+        amount: order.amount,
+        currency: order.currency
+      });
+
+      res.status(200).json({
+        exists: true,
+        order: {
+          id: order.id,
+          status: order.status,
+          amount: order.amount,
+          currency: order.currency,
+          receipt: order.receipt,
+          created_at: order.created_at
+        }
+      });
+    } catch (razorpayError) {
+      console.error('❌ Order not found in Razorpay:', {
+        orderId: orderId,
+        error: razorpayError.error,
+        description: razorpayError.error?.description
+      });
+
+      return res.status(404).json({
+        exists: false,
+        error: "Order not found in Razorpay",
+        details: razorpayError.error?.description || "The order does not exist or has been deleted"
+      });
+    }
+  } catch (error) {
+    console.error('Error verifying order:', error);
+    res.status(500).json({ 
+      error: "Failed to verify order",
+      details: error.message 
+    });
+  }
+});
+
 // Check Razorpay configuration status (for debugging)
 router.get("/config-status", authenticateToken, async (req, res) => {
   try {
@@ -252,10 +313,22 @@ router.post("/create-order", authenticateToken, async (req, res) => {
     }
 
     // Convert price from rupees to paise (Razorpay uses smallest currency unit)
+    // Ensure amount is a positive integer
     const amountInPaise = Math.round(material.price * 100);
 
-    if (amountInPaise <= 0) {
-      return res.status(400).json({ error: "Invalid material price" });
+    if (amountInPaise <= 0 || !Number.isInteger(amountInPaise)) {
+      return res.status(400).json({ 
+        error: "Invalid material price",
+        details: `Price must be greater than 0. Received: ${material.price}, Converted: ${amountInPaise}`
+      });
+    }
+
+    // Validate amount is within Razorpay limits (minimum 1 INR = 100 paise)
+    if (amountInPaise < 100) {
+      return res.status(400).json({ 
+        error: "Amount too small",
+        details: "Minimum payment amount is ₹1.00 (100 paise)"
+      });
     }
 
     // Create Razorpay order
@@ -266,48 +339,82 @@ router.post("/create-order", authenticateToken, async (req, res) => {
     const receipt = `mat_${shortMaterialId}_${shortUserId}_${timestamp}`.substring(0, 40);
     
     const options = {
-      amount: amountInPaise,
+      amount: amountInPaise, // Must be integer in paise
       currency: "INR",
       receipt: receipt,
       notes: {
-        materialId: materialId,
-        materialTitle: material.title,
-        userId: userId,
+        materialId: materialId.toString(),
+        materialTitle: material.title.substring(0, 100), // Limit note length
+        userId: userId.toString(),
       },
     };
+
+    console.log('Creating Razorpay order:', {
+      amount: amountInPaise,
+      currency: options.currency,
+      receipt: receipt,
+      materialId: materialId
+    });
 
     let order;
     try {
       order = await razorpayInstance.orders.create(options);
-      console.log('✅ Razorpay order created:', {
+      
+      // Validate order response
+      if (!order || !order.id) {
+        console.error('❌ Invalid order response from Razorpay:', order);
+        return res.status(500).json({
+          error: 'Invalid order response from payment gateway',
+          details: 'Order creation succeeded but received invalid response'
+        });
+      }
+
+      // Ensure order amount matches what we sent
+      if (order.amount !== amountInPaise) {
+        console.warn('⚠️ Order amount mismatch:', {
+          expected: amountInPaise,
+          received: order.amount
+        });
+      }
+
+      console.log('✅ Razorpay order created successfully:', {
         orderId: order.id,
         amount: order.amount,
         currency: order.currency,
-        status: order.status
+        status: order.status,
+        receipt: order.receipt
       });
     } catch (razorpayError) {
       console.error('❌ Razorpay order creation failed:', {
         error: razorpayError.error,
         description: razorpayError.error?.description,
         code: razorpayError.error?.code,
-        field: razorpayError.error?.field
+        field: razorpayError.error?.field,
+        httpStatusCode: razorpayError.statusCode,
+        requestOptions: {
+          amount: options.amount,
+          currency: options.currency,
+          receipt: options.receipt
+        }
       });
+      
+      // Provide more detailed error message
+      let errorMessage = 'Failed to create payment order';
+      if (razorpayError.error?.description) {
+        errorMessage = razorpayError.error.description;
+      } else if (razorpayError.message) {
+        errorMessage = razorpayError.message;
+      }
+
       return res.status(400).json({
-        error: 'Failed to create payment order',
+        error: errorMessage,
         details: razorpayError.error?.description || razorpayError.message || 'Unknown error',
-        code: razorpayError.error?.code || 'ORDER_CREATION_FAILED'
+        code: razorpayError.error?.code || 'ORDER_CREATION_FAILED',
+        field: razorpayError.error?.field || null
       });
     }
 
-    // Validate order response
-    if (!order || !order.id) {
-      console.error('❌ Invalid order response from Razorpay:', order);
-      return res.status(500).json({
-        error: 'Invalid order response from payment gateway',
-        details: 'Order creation succeeded but received invalid response'
-      });
-    }
-
+    // Order is already validated in the try block above
     // Save payment record
     const payment = await Payment.create({
       userId,
@@ -329,13 +436,65 @@ router.post("/create-order", authenticateToken, async (req, res) => {
       userId
     });
 
-    res.status(200).json({
+    // Validate and sanitize key ID before sending
+    const keyId = process.env.RAZORPAY_KEY_ID?.trim();
+    if (!keyId) {
+      return res.status(500).json({ 
+        error: "Razorpay key ID is not configured",
+        details: "Please set RAZORPAY_KEY_ID in backend/.env"
+      });
+    }
+
+    // Ensure key format is correct
+    if (!keyId.startsWith('rzp_live_') && !keyId.startsWith('rzp_test_')) {
+      console.error('⚠️ Invalid Razorpay key format:', keyId.substring(0, 20) + '...');
+      return res.status(500).json({ 
+        error: "Invalid Razorpay key format",
+        details: "Key must start with rzp_live_ or rzp_test_"
+      });
+    }
+
+    // Verify order status before returning (important for v2 API)
+    if (order.status !== 'created') {
+      console.warn('⚠️ Order status is not "created":', order.status);
+    }
+
+    // Double-check order is valid before sending to frontend
+    if (!order.id || order.status !== 'created') {
+      console.error('❌ Order validation failed:', {
+        hasId: !!order.id,
+        status: order.status,
+        expectedStatus: 'created'
+      });
+      return res.status(500).json({
+        error: 'Order validation failed',
+        details: `Order status is ${order.status}, expected 'created'`
+      });
+    }
+
+    // Return order details with all required information
+    const responseData = {
       orderId: order.id,
-      amount: order.amount,
+      amount: order.amount, // Already in paise
       currency: order.currency || 'INR',
-      keyId: process.env.RAZORPAY_KEY_ID,
-      paymentId: payment.id
+      keyId: keyId,
+      paymentId: payment.id,
+      orderStatus: order.status, // Include status for debugging
+      receipt: order.receipt // Include receipt for reference
+    };
+
+    console.log('📤 Sending order response to frontend:', {
+      orderId: responseData.orderId,
+      orderIdLength: responseData.orderId.length,
+      amount: responseData.amount,
+      amountInRupees: (responseData.amount / 100).toFixed(2),
+      currency: responseData.currency,
+      orderStatus: responseData.orderStatus,
+      keyIdPrefix: responseData.keyId.substring(0, 12) + '...',
+      keyIdLength: responseData.keyId.length
     });
+
+    res.status(200).json(responseData);
   } catch (error) {
     console.error("Error creating Razorpay order:", error);
     res.status(500).json({ 

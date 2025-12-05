@@ -8,6 +8,7 @@ import { validate, materialCreateSchema } from "../middleware/validation.js";
 import Material from "../models/Material.js";
 import notificationService from "../websocket.js";
 import { uploadFile, deleteFile, isR2Ready } from "../lib/r2Client.js";
+import AdmZip from "adm-zip";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -250,106 +251,146 @@ router.post("/", authenticateToken, requireAdmin, validate(materialCreateSchema)
     
     console.log('📥 Final accessType:', finalAccessType, '| Final price:', finalAccessType === 'paid' ? Number(price) : 0);
     
-    // Use only the selected branch (no multi-branch support)
-    if (!branch) {
-      return res.status(400).json({ 
-        error: 'Branch must be selected' 
-      });
-    }
-    
-    // Normalize subject code to uppercase for consistent matching
-    const normalizedSubjectCode = subjectCode ? subjectCode.trim().toUpperCase() : '';
-    
-    if (!normalizedSubjectCode) {
-      return res.status(400).json({ 
-        error: 'Subject code is required' 
-      });
-    }
-    
     // Import Subject model to find the specific subject
     const Subject = (await import('../models/Subject.js')).default;
     
-    // Find the subject in the selected branch with the matching code
-    const normalizedBranch = branch.trim();
-    const escaped = normalizedBranch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const branchRegex = new RegExp(`^${escaped}$`, 'i');
+    // Check if this is a common subject (by subjectId)
+    let matchingSubject = null;
+    let isCommonSubject = false;
+    let allBranches = [];
     
-    const branchSubjects = await Subject.find({ branch: { $regex: branchRegex } });
-    console.log(`🔍 Branch "${normalizedBranch}": Found ${branchSubjects.length} subjects`);
+    if (subjectId) {
+      // Try to find by subjectId first (for common subjects)
+      matchingSubject = await Subject.findById(subjectId);
+      if (matchingSubject && matchingSubject.isCommon) {
+        isCommonSubject = true;
+        console.log(`✅ Found common subject: ${matchingSubject.name} (${matchingSubject.code})`);
+        // Get all branches for common subject
+        allBranches = await Subject.distinct('branch');
+        // Filter out null/undefined branches
+        allBranches = allBranches.filter(b => b && b.trim());
+        console.log(`📚 Common subject valid for ${allBranches.length} branches: ${allBranches.join(', ')}`);
+      }
+    }
     
-    // Find the specific subject with matching code
-    const matchingSubject = branchSubjects.find(subject => {
-      const subjectCode = subject.code ? subject.code.trim().toUpperCase() : '';
-      return subjectCode === normalizedSubjectCode;
-    });
+    // If not a common subject, require branch and find by branch and code
+    if (!isCommonSubject) {
+      if (!branch) {
+        return res.status(400).json({ 
+          error: 'Branch must be selected for non-common subjects' 
+        });
+      }
+      
+      // Normalize subject code to uppercase for consistent matching
+      const normalizedSubjectCode = subjectCode ? subjectCode.trim().toUpperCase() : '';
+      
+      if (!normalizedSubjectCode) {
+        return res.status(400).json({ 
+          error: 'Subject code is required' 
+        });
+      }
+      
+      const normalizedBranch = branch.trim();
+      const escaped = normalizedBranch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const branchRegex = new RegExp(`^${escaped}$`, 'i');
+      
+      const branchSubjects = await Subject.find({ branch: { $regex: branchRegex } });
+      console.log(`🔍 Branch "${normalizedBranch}": Found ${branchSubjects.length} subjects`);
+      
+      // Find the specific subject with matching code
+      matchingSubject = branchSubjects.find(subject => {
+        const subjectCode = subject.code ? subject.code.trim().toUpperCase() : '';
+        return subjectCode === normalizedSubjectCode;
+      });
+      
+      if (!matchingSubject) {
+        console.log(`⚠️ Subject code "${normalizedSubjectCode}" not found in branch "${normalizedBranch}"`);
+        return res.status(400).json({ 
+          error: `Subject with code "${subjectCode}" not found in branch "${branch}"` 
+        });
+      }
+      
+      console.log(`✅ Found matching subject: ${matchingSubject.branch} - ${matchingSubject.code} (${matchingSubject.name})`);
+      allBranches = [matchingSubject.branch];
+    } else {
+      // For common subjects, validate subjectCode if provided
+      if (!subjectCode && !matchingSubject) {
+        return res.status(400).json({ 
+          error: 'Subject code or subjectId is required' 
+        });
+      }
+    }
     
     if (!matchingSubject) {
-      console.log(`⚠️ Subject code "${normalizedSubjectCode}" not found in branch "${normalizedBranch}"`);
       return res.status(400).json({ 
-        error: `Subject with code "${subjectCode}" not found in branch "${branch}"` 
+        error: 'Subject not found' 
       });
     }
     
-    console.log(`✅ Found matching subject: ${matchingSubject.branch} - ${matchingSubject.code} (${matchingSubject.name})`);
-    
-    // Create material entry for the selected subject
+    // Create material entry for the selected subject(s)
     const createdMaterials = [];
     const errors = [];
     
-    try {
-      const material = await Material.create({
-        title,
-        type,
-        url,
-        description: description || '',
-        uploadedBy,
-        subjectId: matchingSubject.id || matchingSubject._id,
-        subjectName: matchingSubject.name || subjectName,
-        branch: matchingSubject.branch,
-        branches: [matchingSubject.branch], // Single branch array
-        semester: String(matchingSubject.semester || semester),
-        subjectCode: matchingSubject.code || subjectCode,
-        resourceType: resourceType || 'notes',
-        accessType: finalAccessType, // Use validated accessType
-        price: finalAccessType === 'paid' ? Number(price) : 0,
-        googleDriveUrl: finalAccessType === 'drive_protected' ? googleDriveUrl : null,
-        storageType: detectedStorageType,
-        tags: tags || [],
-        coverPhoto: coverPhoto || null
-      });
+    // For common subjects, create material for all branches
+    // For regular subjects, create for single branch
+    for (const targetBranch of allBranches) {
+      try {
+        const material = await Material.create({
+          title,
+          type,
+          url,
+          description: description || '',
+          uploadedBy,
+          subjectId: matchingSubject.id || matchingSubject._id,
+          subjectName: matchingSubject.name || subjectName,
+          branch: targetBranch,
+          branches: isCommonSubject ? allBranches : [targetBranch], // All branches for common, single for regular
+          semester: String(matchingSubject.semester || semester),
+          subjectCode: matchingSubject.code || subjectCode,
+          resourceType: resourceType || 'notes',
+          accessType: finalAccessType, // Use validated accessType
+          price: finalAccessType === 'paid' ? Number(price) : 0,
+          googleDriveUrl: finalAccessType === 'drive_protected' ? googleDriveUrl : null,
+          storageType: detectedStorageType,
+          tags: tags || [],
+          coverPhoto: coverPhoto || null
+        });
       
-      console.log(`✅ Material created with accessType: "${finalAccessType}" for ${matchingSubject.branch} - ${matchingSubject.code} (${matchingSubject.name})`);
-      console.log(`📋 Created material details:`, {
-        title: title,
-        accessType: finalAccessType,
-        materialAccessType: material.accessType,
-        price: finalAccessType === 'paid' ? Number(price) : 0,
-        googleDriveUrl: finalAccessType === 'drive_protected' ? googleDriveUrl : null,
-        resourceType: resourceType
-      });
-      
-      // CRITICAL: Verify the material has the correct accessType before adding
-      if (material.accessType !== finalAccessType) {
-        console.error(`❌ CRITICAL ERROR: Material accessType mismatch! Expected: "${finalAccessType}", Got: "${material.accessType}"`);
-        console.error(`❌ Material object:`, JSON.stringify(material.toJSON(), null, 2));
+        console.log(`✅ Material created with accessType: "${finalAccessType}" for ${targetBranch} - ${matchingSubject.code} (${matchingSubject.name})`);
+        console.log(`📋 Created material details:`, {
+          title: title,
+          accessType: finalAccessType,
+          materialAccessType: material.accessType,
+          price: finalAccessType === 'paid' ? Number(price) : 0,
+          googleDriveUrl: finalAccessType === 'drive_protected' ? googleDriveUrl : null,
+          resourceType: resourceType,
+          branch: targetBranch,
+          isCommon: isCommonSubject
+        });
+        
+        // CRITICAL: Verify the material has the correct accessType before adding
+        if (material.accessType !== finalAccessType) {
+          console.error(`❌ CRITICAL ERROR: Material accessType mismatch! Expected: "${finalAccessType}", Got: "${material.accessType}"`);
+          console.error(`❌ Material object:`, JSON.stringify(material.toJSON(), null, 2));
+        }
+        
+        createdMaterials.push(material);
+        console.log(`✅ Material created for ${targetBranch} - ${matchingSubject.code} (${matchingSubject.name})`);
+        
+        // Send notification
+        try {
+          await notificationService.notifyMaterialUploaded(material); 
+        } catch (notifErr) {
+          console.error('Notification error (non-fatal):', notifErr);
+        }
+      } catch (err) {
+        console.error(`❌ Error creating material for ${targetBranch} - ${matchingSubject.code}:`, err);
+        errors.push({
+          branch: targetBranch,
+          code: matchingSubject.code,
+          error: err.message
+        });
       }
-      
-      createdMaterials.push(material);
-      console.log(`✅ Material created for ${matchingSubject.branch} - ${matchingSubject.code} (${matchingSubject.name})`);
-      
-      // Send notification
-      try { 
-        await notificationService.notifyMaterialUploaded(material); 
-      } catch (notifErr) {
-        console.error('Notification error (non-fatal):', notifErr);
-      }
-    } catch (err) {
-      console.error(`❌ Error creating material for ${matchingSubject.branch} - ${matchingSubject.code}:`, err);
-      errors.push({
-        branch: matchingSubject.branch,
-        code: matchingSubject.code,
-        error: err.message
-      });
     }
     
     if (createdMaterials.length === 0) {
@@ -931,6 +972,596 @@ router.get(/^\/proxy\/([^/]+)\/(.+)$/, async (req, res) => {
     return res.status(500).json({ 
       success: false,
       error: 'Failed to serve file: ' + (error.message || 'Unknown error') 
+    });
+  }
+});
+
+// ZIP upload endpoint - extracts PDFs and creates multiple material entries
+// NOTE: This route must be placed before parameterized routes like /:id/*
+router.post('/upload-zip', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    console.log('📦 ZIP upload request received');
+    console.log('📦 Request body keys:', Object.keys(req.body));
+    
+    const { 
+      branch, 
+      semester, 
+      subjectCode, 
+      subjectId,
+      subjectName,
+      materialType, // 'pyqs', 'model_answer_papers', or 'other'
+      description,
+      tags,
+      accessType,
+      price,
+      googleDriveUrl,
+      filename,
+      contentType,
+      dataBase64
+    } = req.body;
+
+    console.log('📦 Extracted fields:', {
+      branch: !!branch,
+      semester: !!semester,
+      subjectCode: !!subjectCode,
+      materialType: !!materialType,
+      filename: !!filename,
+      hasDataBase64: !!dataBase64
+    });
+
+    // Validate required fields
+    if (!semester || !subjectCode || !materialType) {
+      console.error('❌ Missing required fields:', { 
+        branch: branch || 'MISSING', 
+        semester: semester || 'MISSING', 
+        subjectCode: subjectCode || 'MISSING', 
+        subjectId: subjectId || 'MISSING',
+        materialType: materialType || 'MISSING' 
+      });
+      return res.status(400).json({ 
+        error: 'Semester, Subject Code, and Material Type are required',
+        details: {
+          hasSemester: !!semester,
+          hasSubjectCode: !!subjectCode,
+          hasMaterialType: !!materialType,
+          hasBranch: !!branch
+        }
+      });
+    }
+    
+    // Branch is required
+    if (!branch || branch.trim() === '') {
+      console.error('❌ Branch is required');
+      return res.status(400).json({ 
+        error: 'Branch is required' 
+      });
+    }
+
+    // Validate materialType - all three options are supported
+    const validMaterialTypes = ['pyqs', 'model_answer_papers', 'other'];
+    console.log('📦 Validating materialType:', materialType, 'Valid types:', validMaterialTypes);
+    
+    if (!materialType) {
+      return res.status(400).json({ 
+        error: 'Material Type is required. Must be one of: "pyqs", "model_answer_papers", or "other"' 
+      });
+    }
+    
+    if (!validMaterialTypes.includes(materialType)) {
+      console.error('❌ Invalid materialType:', materialType, 'Expected one of:', validMaterialTypes);
+      return res.status(400).json({ 
+        error: `Material Type must be one of: "pyqs", "model_answer_papers", or "other". Received: "${materialType}"` 
+      });
+    }
+    
+    console.log('✅ Material type validated:', materialType);
+
+    // Get ZIP file from request (base64 encoded)
+    if (!filename || !dataBase64) {
+      return res.status(400).json({ error: 'ZIP file is required' });
+    }
+
+    if (contentType !== 'application/zip') {
+      return res.status(400).json({ error: 'File must be a ZIP archive' });
+    }
+
+    console.log('📦 Processing ZIP file:', filename, 'Size:', dataBase64.length, 'chars');
+
+    // Convert base64 to buffer
+    let zipBuffer;
+    try {
+      zipBuffer = Buffer.from(dataBase64, 'base64');
+      console.log('📦 ZIP buffer created, size:', zipBuffer.length, 'bytes');
+    } catch (bufferError) {
+      console.error('❌ Error creating buffer from base64:', bufferError);
+      return res.status(400).json({ error: 'Invalid base64 data' });
+    }
+    
+    // Extract ZIP
+    let zip;
+    let zipEntries;
+    try {
+      zip = new AdmZip(zipBuffer);
+      zipEntries = zip.getEntries();
+      console.log('📦 ZIP extracted, total entries:', zipEntries.length);
+    } catch (zipError) {
+      console.error('❌ Error extracting ZIP:', zipError);
+      return res.status(400).json({ error: 'Failed to extract ZIP file: ' + zipError.message });
+    }
+
+    // Filter for PDF files only
+    const pdfEntries = zipEntries.filter(entry => {
+      const entryName = entry.entryName.toLowerCase();
+      return entryName.endsWith('.pdf') && !entry.isDirectory;
+    });
+
+    if (pdfEntries.length === 0) {
+      return res.status(400).json({ 
+        error: 'No PDF files found in the ZIP archive' 
+      });
+    }
+
+    console.log(`📦 Extracted ${pdfEntries.length} PDF files from ZIP`);
+
+    // Find matching subject (similar to regular POST route)
+    const Subject = (await import('../models/Subject.js')).default;
+    let matchingSubject = null;
+    let isCommonSubject = false;
+    let allBranches = [];
+    
+    // Check if this is a common subject (by subjectId)
+    if (subjectId) {
+      matchingSubject = await Subject.findById(subjectId);
+      if (matchingSubject && matchingSubject.isCommon) {
+        isCommonSubject = true;
+        console.log(`✅ Found common subject: ${matchingSubject.name} (${matchingSubject.code})`);
+        // Get all branches for common subject
+        allBranches = await Subject.distinct('branch');
+        allBranches = allBranches.filter(b => b && b.trim());
+        console.log(`📚 Common subject valid for ${allBranches.length} branches: ${allBranches.join(', ')}`);
+      }
+    }
+    
+    // If not a common subject, find by branch and code
+    if (!isCommonSubject) {
+      if (!branch) {
+        return res.status(400).json({ 
+          error: 'Branch is required' 
+        });
+      }
+      
+      const normalizedSubjectCode = subjectCode ? subjectCode.trim().toUpperCase() : '';
+      
+      if (!normalizedSubjectCode) {
+        return res.status(400).json({ 
+          error: 'Subject code is required' 
+        });
+      }
+      
+      // Use case-insensitive branch matching
+      const normalizedBranch = branch.trim();
+      const escaped = normalizedBranch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const branchRegex = new RegExp(`^${escaped}$`, 'i');
+      
+      const branchSubjects = await Subject.find({ branch: { $regex: branchRegex } });
+      console.log(`🔍 Branch "${normalizedBranch}": Found ${branchSubjects.length} subjects`);
+      
+      // Find the specific subject with matching code
+      matchingSubject = branchSubjects.find(subject => {
+        const subjCode = subject.code ? subject.code.trim().toUpperCase() : '';
+        return subjCode === normalizedSubjectCode && String(subject.semester) === String(semester);
+      });
+
+      if (!matchingSubject) {
+        console.log(`⚠️ Subject code "${normalizedSubjectCode}" not found in branch "${normalizedBranch}" for semester ${semester}`);
+        return res.status(400).json({ 
+          error: `No subject found matching code "${subjectCode}" for branch "${branch}" and semester "${semester}". Please add the subject first.` 
+        });
+      }
+
+      console.log(`✅ Found matching subject: ${matchingSubject.branch} - ${matchingSubject.code} (${matchingSubject.name})`);
+      allBranches = [matchingSubject.branch];
+    }
+    
+    if (!matchingSubject) {
+      return res.status(400).json({ 
+        error: 'Subject not found' 
+      });
+    }
+
+    // Set resourceType based on materialType
+    const resourceType = materialType === 'pyqs' 
+      ? 'pyqs' 
+      : materialType === 'model_answer_papers' 
+        ? 'model_answer_papers' 
+        : 'notes';
+
+    // Set accessType (default to 'free' if not provided)
+    const finalAccessType = accessType && ['free', 'drive_protected', 'paid'].includes(accessType) 
+      ? accessType 
+      : 'free';
+
+    // Validate drive_protected materials require googleDriveUrl
+    if (finalAccessType === 'drive_protected' && !googleDriveUrl) {
+      return res.status(400).json({ 
+        error: 'Google Drive URL is required for drive protected materials' 
+      });
+    }
+
+    // Validate paid materials require price > 0
+    if (finalAccessType === 'paid') {
+      const finalPrice = Number(price) || 0;
+      if (finalPrice <= 0) {
+        return res.status(400).json({ 
+          error: 'Price must be greater than 0 for paid materials' 
+        });
+      }
+    }
+
+    // Process each PDF
+    const createdMaterials = [];
+    const errors = [];
+
+    // For common subjects, create materials for all branches
+    // For regular subjects, create for single branch
+    for (let i = 0; i < pdfEntries.length; i++) {
+      const pdfEntry = pdfEntries[i];
+      
+      // For each PDF, create material for each branch (if common) or single branch
+      for (const targetBranch of allBranches) {
+        try {
+          console.log(`📄 Processing PDF ${i + 1}/${pdfEntries.length}: ${pdfEntry.entryName} for branch ${targetBranch}`);
+          
+          // Extract PDF buffer
+          const pdfBuffer = pdfEntry.getData();
+          const pdfFilename = path.basename(pdfEntry.entryName);
+
+          console.log(`📤 Uploading PDF: ${pdfFilename}, size: ${pdfBuffer.length} bytes`);
+
+          // Upload PDF to storage
+          const uploadResult = await uploadFile(
+            pdfBuffer,
+            pdfFilename,
+            'application/pdf',
+            'materials',
+            'materials'
+          );
+
+          console.log(`✅ PDF uploaded to ${uploadResult.storage}: ${uploadResult.url}`);
+
+          // Create material entry (using matching subject data like regular POST route)
+          const materialData = {
+            title: pdfFilename.replace('.pdf', ''),
+            description: description || `Material from ${filename}`,
+            type: 'pdf',
+            url: uploadResult.url,
+            uploadedBy: req.user?.id || 'admin',
+            subjectId: matchingSubject.id || matchingSubject._id,
+            subjectName: matchingSubject.name || subjectName,
+            branch: targetBranch,
+            branches: isCommonSubject ? allBranches : [targetBranch], // All branches for common, single for regular
+            semester: String(matchingSubject.semester || semester),
+            subjectCode: matchingSubject.code || subjectCode,
+            resourceType: resourceType,
+            accessType: finalAccessType,
+            price: finalAccessType === 'paid' ? (Number(price) || 0) : 0,
+            googleDriveUrl: finalAccessType === 'drive_protected' ? (googleDriveUrl || null) : null,
+            storageType: uploadResult.storage,
+            tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+            coverPhoto: null
+          };
+
+          console.log(`📝 Creating material entry for: ${materialData.title}`);
+          console.log(`📝 Material data:`, JSON.stringify(materialData, null, 2));
+
+          let material;
+          try {
+            material = await Material.create(materialData);
+            console.log(`✅ Material created successfully:`, material._id || material.id);
+          } catch (createError) {
+            console.error(`❌ Error creating material for ${materialData.title}:`, createError);
+            console.error(`❌ Create error stack:`, createError.stack);
+            throw createError; // Re-throw to be caught by outer catch
+          }
+          
+          createdMaterials.push(material);
+
+          // Notify via WebSocket
+          try {
+            await notificationService.notifyMaterialUploaded({
+              title: material.title,
+              url: material.url,
+              type: 'pdf',
+              downloads: 0,
+              createdAt: new Date().toISOString()
+            });
+          } catch (notifyError) {
+            console.error('Failed to notify material upload:', notifyError);
+          }
+
+          console.log(`✅ Created material: ${material.title} for branch ${targetBranch}`);
+        } catch (error) {
+          console.error(`❌ Error processing PDF ${pdfEntry.entryName} for branch ${targetBranch}:`, error);
+          errors.push({
+            filename: pdfEntry.entryName,
+            branch: targetBranch,
+            error: error.message
+          });
+        }
+      }
+    }
+
+    // Return results
+    if (createdMaterials.length === 0) {
+      return res.status(500).json({ 
+        error: 'Failed to create any materials',
+        errors: errors
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Successfully created ${createdMaterials.length} material(s)`,
+      count: createdMaterials.length,
+      materials: createdMaterials.map(m => ({
+        _id: m._id || m.id,
+        id: m.id || m._id,
+        title: m.title,
+        url: m.url
+      })),
+      errors: errors.length > 0 ? errors : undefined
+    });
+
+  } catch (err) {
+    console.error('❌ Error processing ZIP upload:', err);
+    console.error('❌ Error stack:', err.stack);
+    res.status(500).json({ 
+      error: 'Failed to process ZIP upload: ' + (err.message || 'Unknown error'),
+      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  }
+});
+
+// Get materials with filters for import feature
+router.get("/filter", authenticateToken, async (req, res) => {
+  try {
+    const { branch, semester, subjectCode, subjectId, type, resourceType } = req.query;
+    
+    let query = {};
+    
+    // Build query based on filters
+    if (branch && branch !== 'all') {
+      query.$or = [
+        { branch: branch },
+        { branches: branch }
+      ];
+    }
+    
+    if (semester) {
+      query.semester = String(semester);
+    }
+    
+    if (subjectCode) {
+      query.subjectCode = subjectCode;
+    }
+    
+    if (subjectId) {
+      query.subjectId = subjectId;
+    }
+    
+    if (type) {
+      query.type = type;
+    }
+    
+    if (resourceType) {
+      query.resourceType = resourceType;
+    }
+    
+    console.log('🔍 Fetching materials with filters:', query);
+    
+    const materials = await Material.find(query, { sort: { createdAt: -1 } });
+    
+    // Normalize IDs
+    const normalizedMaterials = materials.map(m => {
+      const materialObj = m.toJSON ? m.toJSON() : m;
+      return {
+        ...materialObj,
+        _id: materialObj.id || materialObj._id,
+        id: materialObj.id || materialObj._id,
+        title: materialObj.title || '',
+        type: materialObj.type || 'pdf',
+        resourceType: materialObj.resourceType || 'notes',
+        tags: materialObj.tags || [],
+        description: materialObj.description || ''
+      };
+    });
+    
+    console.log(`✅ Found ${normalizedMaterials.length} materials matching filters`);
+    
+    res.status(200).json(normalizedMaterials);
+  } catch (err) {
+    console.error("❌ Error fetching filtered materials:", err);
+    res.status(500).json({ error: 'Failed to fetch materials: ' + (err.message || 'Unknown error') });
+  }
+});
+
+// Import/copy materials to a new subject
+router.post("/import", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { 
+      materialIds, // Array of material IDs to import
+      targetBranch,
+      targetSemester,
+      targetSubjectId,
+      targetSubjectCode,
+      targetSubjectName,
+      importAll = false, // If true, import all materials from source
+      sourceBranch,
+      sourceSemester,
+      sourceSubjectCode,
+      sourceSubjectId
+    } = req.body;
+    
+    console.log('📥 Import materials request:', {
+      materialIds,
+      importAll,
+      targetBranch,
+      targetSemester,
+      targetSubjectCode,
+      sourceBranch,
+      sourceSemester,
+      sourceSubjectCode
+    });
+    
+    // Validate target subject
+    if (!targetSemester || !targetSubjectId || !targetSubjectCode) {
+      return res.status(400).json({ 
+        error: 'Target semester, subjectId, and subjectCode are required' 
+      });
+    }
+    
+    // Import Subject model to validate target subject
+    const Subject = (await import('../models/Subject.js')).default;
+    let targetSubject = null;
+    
+    // Find target subject
+    if (targetSubjectId) {
+      targetSubject = await Subject.findById(targetSubjectId);
+    }
+    
+    if (!targetSubject && targetSubjectCode) {
+      // Try to find by code and branch
+      if (targetBranch) {
+        const normalizedBranch = targetBranch.trim();
+        const escaped = normalizedBranch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const branchRegex = new RegExp(`^${escaped}$`, 'i');
+        const branchSubjects = await Subject.find({ branch: { $regex: branchRegex } });
+        targetSubject = branchSubjects.find(s => 
+          s.code && s.code.trim().toUpperCase() === targetSubjectCode.trim().toUpperCase()
+        );
+      }
+    }
+    
+    if (!targetSubject) {
+      return res.status(400).json({ 
+        error: `Target subject not found: ${targetSubjectCode}` 
+      });
+    }
+    
+    console.log(`✅ Target subject found: ${targetSubject.name} (${targetSubject.code})`);
+    
+    // Find source materials
+    let sourceMaterials = [];
+    
+    if (importAll) {
+      // Import all materials from source subject
+      let sourceQuery = {};
+      
+      if (sourceSubjectId) {
+        sourceQuery.subjectId = sourceSubjectId;
+      } else if (sourceSubjectCode) {
+        sourceQuery.subjectCode = sourceSubjectCode;
+      }
+      
+      if (sourceSemester) {
+        sourceQuery.semester = String(sourceSemester);
+      }
+      
+      if (sourceBranch && sourceBranch !== 'all') {
+        sourceQuery.$or = [
+          { branch: sourceBranch },
+          { branches: sourceBranch }
+        ];
+      }
+      
+      console.log('🔍 Fetching all source materials with query:', sourceQuery);
+      sourceMaterials = await Material.find(sourceQuery);
+    } else if (materialIds && Array.isArray(materialIds) && materialIds.length > 0) {
+      // Import specific materials
+      sourceMaterials = await Material.find({ 
+        _id: { $in: materialIds } 
+      });
+    } else {
+      return res.status(400).json({ 
+        error: 'Either materialIds array or importAll=true is required' 
+      });
+    }
+    
+    if (sourceMaterials.length === 0) {
+      return res.status(404).json({ 
+        error: 'No source materials found to import' 
+      });
+    }
+    
+    console.log(`📦 Importing ${sourceMaterials.length} materials`);
+    
+    // Import materials
+    const importedMaterials = [];
+    const errors = [];
+    
+    for (const sourceMaterial of sourceMaterials) {
+      try {
+        const materialData = {
+          title: sourceMaterial.title,
+          type: sourceMaterial.type,
+          url: sourceMaterial.url, // Reuse the same URL (file is not duplicated)
+          description: sourceMaterial.description || '',
+          uploadedBy: req.user?.id || 'admin',
+          subjectId: targetSubject.id || targetSubject._id,
+          subjectName: targetSubject.name || targetSubjectName,
+          branch: targetBranch || targetSubject.branch,
+          branches: targetBranch ? [targetBranch] : [targetSubject.branch],
+          semester: String(targetSubject.semester || targetSemester),
+          subjectCode: targetSubject.code || targetSubjectCode,
+          resourceType: sourceMaterial.resourceType || 'notes',
+          accessType: sourceMaterial.accessType || 'free',
+          price: sourceMaterial.price || 0,
+          googleDriveUrl: sourceMaterial.googleDriveUrl || null,
+          storageType: sourceMaterial.storageType || 'local',
+          tags: sourceMaterial.tags || [],
+          coverPhoto: sourceMaterial.coverPhoto || null
+        };
+        
+        const importedMaterial = await Material.create(materialData);
+        importedMaterials.push(importedMaterial);
+        
+        console.log(`✅ Imported material: ${importedMaterial.title}`);
+      } catch (error) {
+        console.error(`❌ Error importing material ${sourceMaterial.title}:`, error);
+        errors.push({
+          title: sourceMaterial.title,
+          error: error.message
+        });
+      }
+    }
+    
+    // Send notifications
+    for (const material of importedMaterials) {
+      try {
+        await notificationService.notifyMaterialUploaded(material);
+      } catch (notifErr) {
+        console.error('Notification error (non-fatal):', notifErr);
+      }
+    }
+    
+    res.status(201).json({
+      success: true,
+      message: `Successfully imported ${importedMaterials.length} material(s)`,
+      count: importedMaterials.length,
+      materials: importedMaterials.map(m => ({
+        _id: m._id || m.id,
+        id: m.id || m._id,
+        title: m.title,
+        url: m.url
+      })),
+      errors: errors.length > 0 ? errors : undefined
+    });
+    
+  } catch (err) {
+    console.error('❌ Error importing materials:', err);
+    res.status(500).json({ 
+      error: 'Failed to import materials: ' + (err.message || 'Unknown error'),
+      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
   }
 });

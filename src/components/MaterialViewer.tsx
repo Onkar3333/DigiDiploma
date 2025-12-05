@@ -159,6 +159,11 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
       return normalizedUrl;
     }
     
+    // If relative URL starting with /api/materials/proxy/, keep it relative for proper proxying
+    if (normalizedUrl.startsWith('/api/materials/proxy/')) {
+      return normalizedUrl;
+    }
+    
     // If relative, make it absolute using current origin
     if (normalizedUrl.startsWith('/')) {
       const absoluteUrl = `${window.location.origin}${normalizedUrl}`;

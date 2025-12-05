@@ -14,9 +14,10 @@ import {
   Code, Search, Filter, Upload, Download, Eye, Star, 
   Github, ExternalLink, FileText, Image as ImageIcon, Video,
   Plus, X, CheckCircle, Clock, Users, BookOpen, ArrowLeft,
-  Mail, Phone, MessageCircle, Send, Trash2, Edit, Lock, User
+  Mail, Phone, MessageCircle, Send, Trash2, Edit, Lock, User,
+  Share2, Copy, Check
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface Project {
@@ -189,7 +190,9 @@ const SUBJECT_OPTIONS = [
 const Projects = () => {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const { id: projectIdFromUrl } = useParams();
   const { toast } = useToast();
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [studentProjects, setStudentProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -256,12 +259,19 @@ const Projects = () => {
   }, [user?.name, user?.email, user?.branch, user?.semester]);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchProjects();
-    } else {
-      setLoading(false);
-    }
+    fetchProjects();
   }, [isAuthenticated, user?.id]);
+
+  // Handle direct project link from URL
+  useEffect(() => {
+    if (projectIdFromUrl && !showProjectDialog) {
+      // Small delay to ensure projects are loaded first
+      const timer = setTimeout(() => {
+        fetchProjectDetails(projectIdFromUrl);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [projectIdFromUrl, showProjectDialog]);
 
   const convertFileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -296,39 +306,62 @@ const Projects = () => {
 
 
   const fetchProjects = async () => {
-    if (!isAuthenticated) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/projects', {
-        headers: { ...authService.getAuthHeaders() }
-      });
+      // Fetch public projects (admin projects that are approved and public)
+      const res = await fetch('/api/projects/public');
       if (!res.ok) {
-        throw new Error('Failed to fetch');
-      }
-      const data = await res.json();
-      const allProjects = data.projects || [];
-      
-      // Normalize URLs in all projects (convert localhost URLs to relative paths)
-      const normalizedProjects = allProjects.map((p: any) => normalizeMaterialUrls(p));
-      
-      // Separate admin and student projects
-      const adminProjects = normalizedProjects.filter((p: any) => p.isAdminProject && p.status === 'approved');
-      
-      // Filter student projects
-      // Admins see all student projects
-      // Students see only their own projects (already filtered by backend, but we ensure it here too)
-      let studentProjs: Project[] = [];
-      if (user?.userType === 'admin') {
-        // Admins see all student projects
-        studentProjs = normalizedProjects.filter((p: any) => !p.isAdminProject);
+        // If public endpoint doesn't exist, try authenticated endpoint
+        if (isAuthenticated) {
+          const authRes = await fetch('/api/projects', {
+            headers: { ...authService.getAuthHeaders() }
+          });
+          if (!authRes.ok) throw new Error('Failed to fetch');
+          const data = await authRes.json();
+          const allProjects = data.projects || [];
+          const normalizedProjects = allProjects.map((p: any) => normalizeMaterialUrls(p));
+          const adminProjects = normalizedProjects.filter((p: any) => p.isAdminProject && p.status === 'approved');
+          setProjects(adminProjects);
+          
+          if (user?.userType === 'admin') {
+            const studentProjs = normalizedProjects.filter((p: any) => !p.isAdminProject);
+            setStudentProjects(studentProjs);
+          } else if (isAuthenticated) {
+            const studentProjs = normalizedProjects.filter((p: any) => !p.isAdminProject && p.studentId === user?.id);
+            setStudentProjects(studentProjs);
+          }
+        } else {
+          // If not authenticated and no public endpoint, show empty
+          setProjects([]);
+          setStudentProjects([]);
+        }
       } else {
-        // Students see only their own projects (backend already filters, but we ensure it)
-        studentProjs = normalizedProjects.filter((p: any) => !p.isAdminProject && p.studentId === user?.id);
+        const data = await res.json();
+        const publicProjects = (data.projects || []).map((p: any) => normalizeMaterialUrls(p));
+        setProjects(publicProjects);
+        
+        // If authenticated, also fetch user-specific projects
+        if (isAuthenticated) {
+          const authRes = await fetch('/api/projects', {
+            headers: { ...authService.getAuthHeaders() }
+          });
+          if (authRes.ok) {
+            const authData = await authRes.json();
+            const allProjects = authData.projects || [];
+            const normalizedProjects = allProjects.map((p: any) => normalizeMaterialUrls(p));
+            
+            if (user?.userType === 'admin') {
+              const studentProjs = normalizedProjects.filter((p: any) => !p.isAdminProject);
+              setStudentProjects(studentProjs);
+            } else {
+              const studentProjs = normalizedProjects.filter((p: any) => !p.isAdminProject && p.studentId === user?.id);
+              setStudentProjects(studentProjs);
+            }
+          }
+        }
       }
-      
-      setProjects(adminProjects);
-      setStudentProjects(studentProjs);
     } catch (err) {
+      console.error('Error fetching projects:', err);
       toast({ title: "Failed to load projects", variant: "destructive" });
     } finally {
       setLoading(false);
@@ -336,21 +369,51 @@ const Projects = () => {
   };
 
   const fetchProjectDetails = async (projectId: string) => {
-    if (!isAuthenticated) {
-      toast({ title: "Please login first", variant: "destructive" });
-      window.location.href = '/?login=1';
-      return;
-    }
     try {
-      const res = await fetch(`/api/projects/${projectId}`, {
-        headers: { ...authService.getAuthHeaders() }
-      });
-      if (!res.ok) throw new Error('Failed to fetch');
+      // Try public endpoint first
+      let res = await fetch(`/api/projects/${projectId}/public`);
+      if (!res.ok && isAuthenticated) {
+        // Fallback to authenticated endpoint if available
+        res = await fetch(`/api/projects/${projectId}`, {
+          headers: { ...authService.getAuthHeaders() }
+        });
+      }
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          toast({ title: "Please login to view this project", variant: "destructive" });
+          return;
+        }
+        throw new Error('Failed to fetch');
+      }
       const data = await res.json();
       setSelectedProject(data);
       setShowProjectDialog(true);
+      
+      // Update URL to include project ID for shareable link
+      navigate(`/projects/${projectId}`, { replace: true });
     } catch (err) {
       toast({ title: "Failed to load project details", variant: "destructive" });
+    }
+  };
+
+  const handleShareProject = async (projectId: string) => {
+    const shareUrl = `${window.location.origin}/projects/${projectId}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedLink(projectId);
+      toast({ title: "Link copied to clipboard!", description: "Share this link with others." });
+      setTimeout(() => setCopiedLink(null), 2000);
+    } catch (err) {
+      // Fallback for browsers that don't support clipboard API
+      const textArea = document.createElement('textarea');
+      textArea.value = shareUrl;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopiedLink(projectId);
+      toast({ title: "Link copied to clipboard!", description: "Share this link with others." });
+      setTimeout(() => setCopiedLink(null), 2000);
     }
   };
 
@@ -631,46 +694,37 @@ const Projects = () => {
             <option value="Artificial Intelligence & Machine Learning (AIML)">AIML</option>
             <option value="Mechatronics Engineering">Mechatronics</option>
           </select>
-          <Button 
-            onClick={() => {
-              if (!isAuthenticated) {
-                window.location.href = '/?login=1';
-              } else {
-                setShowUploadDialog(true);
-              }
-            }}
-          >
-            <Upload className="w-4 h-4 mr-2" />
-            Upload Project
-          </Button>
+          {isAuthenticated && (
+            <Button 
+              onClick={() => setShowUploadDialog(true)}
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              Upload Project
+            </Button>
+          )}
+          {!isAuthenticated && (
+            <Button 
+              onClick={() => window.location.href = '/?login=1'}
+              variant="outline"
+            >
+              <User className="w-4 h-4 mr-2" />
+              Login to Upload
+            </Button>
+          )}
         </div>
 
-        {!isAuthenticated ? (
-          <div className="text-center py-12 bg-white rounded-3xl shadow-lg border border-slate-100 mt-8">
-            <Code className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-2xl font-bold text-slate-900 mb-2">Login to Access Projects</h3>
-            <p className="text-gray-600 mb-6 max-w-md mx-auto">
-              Get access to thousands of projects, upload your own work, and collaborate with fellow students.
-            </p>
-            <Button 
-              size="lg"
-              onClick={() => window.location.href = '/?login=1'}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-6 text-lg font-semibold shadow-lg hover:shadow-xl transition-all"
-            >
-              <User className="w-5 h-5 mr-2" />
-              Login to Access Projects
-            </Button>
-          </div>
-        ) : loading ? (
+        {loading ? (
           <div className="text-center py-12">Loading projects...</div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className={`grid w-full ${user?.userType === 'admin' ? 'grid-cols-3' : 'grid-cols-2'}`}>
-              <TabsTrigger value="admin">Admin Projects ({projects.length})</TabsTrigger>
-              {user?.userType === 'admin' && (
+            <TabsList className={`grid w-full ${isAuthenticated && user?.userType === 'admin' ? 'grid-cols-3' : isAuthenticated ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <TabsTrigger value="admin">All Projects ({projects.length})</TabsTrigger>
+              {isAuthenticated && user?.userType === 'admin' && (
                 <TabsTrigger value="student">Student Projects ({studentProjects.length})</TabsTrigger>
               )}
-              <TabsTrigger value="my">My Projects ({myProjects.length})</TabsTrigger>
+              {isAuthenticated && (
+                <TabsTrigger value="my">My Projects ({myProjects.length})</TabsTrigger>
+              )}
             </TabsList>
 
             {/* Admin Projects Tab */}
@@ -729,6 +783,24 @@ const Projects = () => {
                     >
                       <Eye className="w-4 h-4 mr-1" />
                       View
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleShareProject(project.id)}
+                      title="Share project"
+                    >
+                      {copiedLink === project.id ? (
+                        <>
+                          <Check className="w-4 h-4 mr-1" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="w-4 h-4 mr-1" />
+                          Share
+                        </>
+                      )}
                     </Button>
                             {project.simulationLink && (
                               <a href={project.simulationLink} target="_blank" rel="noopener noreferrer">
@@ -816,6 +888,24 @@ const Projects = () => {
                               >
                                 <Eye className="w-4 h-4 mr-1" />
                                 View
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleShareProject(project.id)}
+                                title="Share project"
+                              >
+                                {copiedLink === project.id ? (
+                                  <>
+                                    <Check className="w-4 h-4 mr-1" />
+                                    Copied
+                                  </>
+                                ) : (
+                                  <>
+                                    <Share2 className="w-4 h-4 mr-1" />
+                                    Share
+                                  </>
+                                )}
                               </Button>
                               {project.simulationLink && (
                                 <a href={project.simulationLink} target="_blank" rel="noopener noreferrer">
@@ -907,6 +997,24 @@ const Projects = () => {
                           >
                             <Eye className="w-4 h-4 mr-1" />
                             View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleShareProject(project.id)}
+                            title="Share project"
+                          >
+                            {copiedLink === project.id ? (
+                              <>
+                                <Check className="w-4 h-4 mr-1" />
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <Share2 className="w-4 h-4 mr-1" />
+                                Share
+                              </>
+                            )}
                           </Button>
                             {project.simulationLink && (
                               <a href={project.simulationLink} target="_blank" rel="noopener noreferrer">
@@ -1331,6 +1439,23 @@ const Projects = () => {
 
                 {/* Action Buttons */}
                 <div className="flex flex-wrap gap-3 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleShareProject(selectedProject.id)}
+                    title="Share this project"
+                  >
+                    {copiedLink === selectedProject.id ? (
+                      <>
+                        <Check className="w-4 h-4 mr-2" />
+                        Link Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Share2 className="w-4 h-4 mr-2" />
+                        Share Project
+                      </>
+                    )}
+                  </Button>
                   {selectedProject.pdfUrl && (
                     <Button
                       onClick={() => handleDownload(selectedProject)}

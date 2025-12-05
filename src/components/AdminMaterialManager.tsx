@@ -27,7 +27,10 @@ import {
   Filter,
   Lock,
   DollarSign,
-  Cloud
+  Cloud,
+  Copy,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -98,6 +101,35 @@ const AdminMaterialManager = () => {
   const [filterType, setFilterType] = useState('all');
   const [filterBranch, setFilterBranch] = useState('all');
   const [activeTab, setActiveTab] = useState<'free' | 'drive_protected' | 'paid'>('free'); // New: active tab
+  const [isZipDialogOpen, setIsZipDialogOpen] = useState(false);
+  const [zipUploadData, setZipUploadData] = useState({
+    branch: '',
+    semester: '',
+    subjectCode: '',
+    subjectId: '',
+    subjectName: '',
+    materialType: 'pyqs' as 'pyqs' | 'model_answer_papers' | 'other',
+    description: '',
+    tags: '',
+    zipFile: null as File | null
+  });
+  const [zipUploading, setZipUploading] = useState(false);
+  
+  // Import Material state
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importSource, setImportSource] = useState({
+    branch: 'all',
+    semester: '',
+    subjectCode: '',
+    subjectId: '',
+    type: 'all',
+    resourceType: 'all'
+  });
+  const [importMaterials, setImportMaterials] = useState<Material[]>([]);
+  const [selectedImportMaterials, setSelectedImportMaterials] = useState<string[]>([]);
+  const [importAll, setImportAll] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importSourceSubjects, setImportSourceSubjects] = useState<any[]>([]);
   
   // Fallback branches and semesters
   const DEFAULT_BRANCHES = [...ALL_BRANCHES];
@@ -245,6 +277,167 @@ const AdminMaterialManager = () => {
       setSubjects([]);
     }
   }, [selectedBranch, selectedSemester]);
+
+
+  // Fetch subjects for import source
+  // Fetch subjects for import source
+  useEffect(() => {
+    if (isImportDialogOpen && importSource.semester) {
+      const fetchImportSubjects = async () => {
+        try {
+          let url = `/api/subjects?semester=${encodeURIComponent(importSource.semester)}`;
+          if (importSource.branch && importSource.branch !== 'all') {
+            url += `&branch=${encodeURIComponent(importSource.branch)}`;
+          }
+          const res = await fetch(url, {
+            headers: { ...authService.getAuthHeaders() }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setImportSourceSubjects(data);
+          }
+        } catch (error) {
+          console.error('Error fetching subjects for import:', error);
+          setImportSourceSubjects([]);
+        }
+      };
+      fetchImportSubjects();
+    } else {
+      setImportSourceSubjects([]);
+    }
+  }, [isImportDialogOpen, importSource.branch, importSource.semester]);
+
+
+  const fetchImportMaterials = async () => {
+    if (!importSource.subjectCode && !importSource.subjectId) {
+      setImportMaterials([]);
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams();
+      if (importSource.branch && importSource.branch !== 'all') {
+        params.append('branch', importSource.branch);
+      }
+      if (importSource.semester) {
+        params.append('semester', importSource.semester);
+      }
+      if (importSource.subjectCode) {
+        params.append('subjectCode', importSource.subjectCode);
+      }
+      if (importSource.subjectId) {
+        params.append('subjectId', importSource.subjectId);
+      }
+      if (importSource.type && importSource.type !== 'all') {
+        params.append('type', importSource.type);
+      }
+      if (importSource.resourceType && importSource.resourceType !== 'all') {
+        params.append('resourceType', importSource.resourceType);
+      }
+
+      const res = await fetch(`/api/materials/filter?${params.toString()}`, {
+        headers: { ...authService.getAuthHeaders() }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setImportMaterials(data);
+      } else {
+        console.error('Failed to fetch import materials');
+        setImportMaterials([]);
+      }
+    } catch (error) {
+      console.error('Error fetching import materials:', error);
+      setImportMaterials([]);
+    }
+  };
+
+  const handleImportMaterials = async () => {
+    if (!selectedBranch || !selectedSemester || !selectedSubject) {
+      toast.error('Please select target Branch, Semester, and Subject');
+      return;
+    }
+
+    const selectedSubjectObj = subjects.find(s => s.code === selectedSubject);
+    if (!selectedSubjectObj) {
+      toast.error('Target subject not found');
+      return;
+    }
+
+    if (!importAll && selectedImportMaterials.length === 0) {
+      toast.error('Please select at least one material to import');
+      return;
+    }
+
+    setImportLoading(true);
+
+    try {
+      const res = await fetch('/api/materials/import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders()
+        },
+        body: JSON.stringify({
+          materialIds: importAll ? [] : selectedImportMaterials,
+          importAll: importAll,
+          targetBranch: selectedBranch,
+          targetSemester: selectedSemester,
+          targetSubjectId: selectedSubjectObj._id,
+          targetSubjectCode: selectedSubjectObj.code,
+          targetSubjectName: selectedSubjectObj.name,
+          sourceBranch: importSource.branch,
+          sourceSemester: importSource.semester,
+          sourceSubjectCode: importSource.subjectCode,
+          sourceSubjectId: importSource.subjectId
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`Successfully imported ${data.count} material(s)`);
+        
+        // Refresh materials list
+        fetchMaterials();
+        
+        // Close dialog and reset
+        setIsImportDialogOpen(false);
+        setImportSource({
+          branch: 'all',
+          semester: '',
+          subjectCode: '',
+          subjectId: '',
+          type: 'all',
+          resourceType: 'all'
+        });
+        setImportMaterials([]);
+        setSelectedImportMaterials([]);
+        setImportAll(false);
+      } else {
+        const error = await res.json();
+        toast.error(error.error || 'Failed to import materials');
+      }
+    } catch (error) {
+      console.error('Error importing materials:', error);
+      toast.error('Failed to import materials');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+
+  // Fetch semesters and subjects when ZIP dialog opens and branch/semester changes
+  useEffect(() => {
+    if (isZipDialogOpen && zipUploadData.branch) {
+      fetchSemesters(zipUploadData.branch);
+    }
+  }, [isZipDialogOpen, zipUploadData.branch]);
+
+  useEffect(() => {
+    if (isZipDialogOpen && zipUploadData.branch && zipUploadData.semester) {
+      fetchSubjects(zipUploadData.branch, zipUploadData.semester);
+    }
+  }, [isZipDialogOpen, zipUploadData.branch, zipUploadData.semester]);
 
   // Initialize form when dialog opens
   useEffect(() => {
@@ -603,9 +796,6 @@ const AdminMaterialManager = () => {
         }
       }
 
-      // Get subject details
-      const selectedSubjectObj = subjects.find(s => s.code === formData.subjectCode);
-      
       // Use only the selected branch
       if (!selectedBranch) {
         toast.error('Please select a branch');
@@ -613,6 +803,9 @@ const AdminMaterialManager = () => {
       }
       
       const selectedBranchName = selectedBranch.trim();
+      
+      // Get subject details
+      const selectedSubjectObj = subjects.find(s => s.code === formData.subjectCode);
       
       // For drive protected, use googleDriveUrl if provided, otherwise use materialUrl
       const finalUrl = finalAccessType === 'drive_protected' && formData.googleDriveUrl 
@@ -884,6 +1077,106 @@ const AdminMaterialManager = () => {
     setSelectedSubject('');
   };
 
+  const handleZipFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (file.type !== 'application/zip' && !file.name.toLowerCase().endsWith('.zip')) {
+        toast.error('Please select a ZIP file');
+        return;
+      }
+      
+      // Validate file size (50MB max)
+      if (file.size > 50 * 1024 * 1024) {
+        toast.error('ZIP file size exceeds 50MB limit.');
+        return;
+      }
+      
+      setZipUploadData({ ...zipUploadData, zipFile: file });
+    }
+  };
+
+  const handleZipUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validation
+    if (!zipUploadData.semester) {
+      toast.error('Please select Semester');
+      return;
+    }
+
+    if (!zipUploadData.branch || !zipUploadData.semester || !zipUploadData.subjectCode) {
+      toast.error('Please select Branch, Semester, and Subject');
+      return;
+    }
+
+    if (!zipUploadData.zipFile) {
+      toast.error('Please select a ZIP file');
+      return;
+    }
+
+    setZipUploading(true);
+
+    try {
+      // Convert ZIP file to base64
+      const base64 = await convertFileToBase64(zipUploadData.zipFile);
+
+      // Get subject details
+      const selectedSubjectObj = subjects.find(s => s.code === zipUploadData.subjectCode);
+
+      // Upload ZIP and create materials
+      const res = await fetch('/api/materials/upload-zip', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeaders()
+        },
+        body: JSON.stringify({
+          branch: zipUploadData.branch,
+          semester: zipUploadData.semester,
+          subjectCode: zipUploadData.subjectCode,
+          subjectId: selectedSubjectObj?._id || zipUploadData.subjectCode,
+          subjectName: selectedSubjectObj?.name || '',
+          materialType: zipUploadData.materialType,
+          description: zipUploadData.description || `Materials from ${zipUploadData.zipFile.name}`,
+          tags: zipUploadData.tags,
+          filename: zipUploadData.zipFile.name,
+          contentType: 'application/zip',
+          dataBase64: base64,
+          accessType: 'free', // ZIP uploads default to free materials
+          price: 0,
+          googleDriveUrl: null
+        })
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        toast.success(`Successfully uploaded ${result.count} material(s) from ZIP`);
+        setIsZipDialogOpen(false);
+        setZipUploadData({
+          branch: '',
+          semester: '',
+          subjectCode: '',
+          subjectId: '',
+          subjectName: '',
+          materialType: 'pyqs',
+          description: '',
+          tags: '',
+          zipFile: null
+        });
+        fetchMaterials();
+      } else {
+        const error = await res.json();
+        toast.error(error.error || 'Failed to upload ZIP file');
+      }
+    } catch (error: any) {
+      console.error('Error uploading ZIP:', error);
+      toast.error(error.message || 'Failed to upload ZIP file');
+    } finally {
+      setZipUploading(false);
+    }
+  };
+
   const filteredMaterials = materials.filter(material => {
     const matchesSearch = material.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          material.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1006,29 +1299,85 @@ const AdminMaterialManager = () => {
           <h2 className="text-3xl font-bold text-slate-900">Material Management</h2>
           <p className="text-slate-600 mt-1">Upload and manage study materials for students</p>
         </div>
-        <Button onClick={() => { 
-          // Set access type based on active tab when creating new material
-          const defaultResourceType = getResourceTypes()[0]?.value || 'syllabus';
-          console.log('🔵 Opening dialog - activeTab:', activeTab, 'type:', typeof activeTab);
-          // First reset form, then set accessType to match activeTab
-          resetForm();
-          // After reset, explicitly set accessType to activeTab
-          setFormData(prev => ({
-            ...prev,
-            accessType: activeTab, // Ensure it matches activeTab
-            resourceType: defaultResourceType,
-            branches: []
-          }));
-          // Ensure branches are loaded and initialized
-          if (branches.length > 0 && !selectedBranch) {
-            setSelectedBranch(branches[0]);
-            setFormData(prev => ({ ...prev, branch: branches[0] }));
-          }
-          setIsDialogOpen(true); 
-        }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Material
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => { 
+            // Set access type based on active tab when creating new material
+            const defaultResourceType = getResourceTypes()[0]?.value || 'syllabus';
+            console.log('🔵 Opening dialog - activeTab:', activeTab, 'type:', typeof activeTab);
+            // First reset form, then set accessType to match activeTab
+            resetForm();
+            // After reset, explicitly set accessType to activeTab
+            setFormData(prev => ({
+              ...prev,
+              accessType: activeTab, // Ensure it matches activeTab
+              resourceType: defaultResourceType,
+              branches: []
+            }));
+            // Ensure branches are loaded and initialized
+            if (branches.length > 0 && !selectedBranch) {
+              setSelectedBranch(branches[0]);
+              setFormData(prev => ({ ...prev, branch: branches[0] }));
+            }
+            setIsDialogOpen(true); 
+          }}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Material
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={() => {
+              // Initialize import dialog
+              if (selectedBranch && selectedSemester && selectedSubject) {
+                setImportSource({
+                  branch: 'all',
+                  semester: selectedSemester,
+                  subjectCode: '',
+                  subjectId: '',
+                  type: 'all',
+                  resourceType: 'all'
+                });
+                setImportMaterials([]);
+                setSelectedImportMaterials([]);
+                setImportAll(false);
+                setIsImportDialogOpen(true);
+              } else {
+                toast.error('Please select Branch, Semester, and Subject first');
+              }
+            }}
+            disabled={!selectedBranch || !selectedSemester || !selectedSubject}
+            title="Import materials from other subjects"
+          >
+            <Copy className="w-4 h-4 mr-2" />
+            Import Material
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={() => {
+              // Initialize ZIP upload form
+              if (branches.length > 0) {
+                setZipUploadData({
+                  branch: branches[0],
+                  semester: '',
+                  subjectCode: '',
+                  subjectId: '',
+                  subjectName: '',
+                  materialType: 'pyqs',
+                  description: '',
+                  tags: '',
+                  zipFile: null
+                });
+                setSelectedBranch(branches[0]);
+                if (selectedBranch) {
+                  fetchSemesters(selectedBranch);
+                }
+              }
+              setIsZipDialogOpen(true);
+            }}
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            Bulk Upload (ZIP)
+          </Button>
+        </div>
       </div>
 
       {/* Tabs for Material Types */}
@@ -1294,18 +1643,18 @@ const AdminMaterialManager = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Add/Edit Material Dialog */}
+      {/* Add/Edit Material Dialog - Mobile Optimized */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">
               {editingMaterial ? 'Edit Material' : 'Add New Material'}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-sm">
               {editingMaterial ? 'Update the material details below.' : 'Fill in the details to upload a new study material.'}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
             {/* Access Type - Set based on active tab when creating new, editable when editing */}
             {editingMaterial ? (
               <div>
@@ -1453,34 +1802,36 @@ const AdminMaterialManager = () => {
                   </SelectContent>
                 </Select>
               </div>
-            <div>
-              <Label htmlFor="title">Material Title *</Label>
+              <div>
+              <Label htmlFor="title" className="text-sm font-medium mb-2 block">Material Title *</Label>
               <Input
                 id="title"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 required
                 placeholder="e.g., Unit 1 Lecture Notes"
+                className="h-11 sm:h-10 text-base sm:text-sm"
               />
               </div>
             </div>
 
             <div>
-              <Label htmlFor="description">Material Description *</Label>
+              <Label htmlFor="description" className="text-sm font-medium mb-2 block">Material Description *</Label>
               <Textarea
                 id="description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 required
-                rows={3}
+                rows={4}
                 placeholder="Brief description of the material"
+                className="text-base sm:text-sm min-h-[100px] sm:min-h-[80px]"
               />
             </div>
 
             {/* Price field for paid materials */}
             {(editingMaterial ? formData.accessType === 'paid' : activeTab === 'paid') && (
               <div>
-                <Label htmlFor="price">Price (INR) *</Label>
+                <Label htmlFor="price" className="text-sm font-medium mb-2 block">Price (INR) *</Label>
                 <Input
                   id="price"
                   type="number"
@@ -1490,8 +1841,9 @@ const AdminMaterialManager = () => {
                   onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
                   required={true}
                   placeholder="Enter price in INR"
+                  className="h-11 sm:h-10 text-base sm:text-sm"
                 />
-                <p className="text-xs text-slate-500 mt-1">Set the price for this paid material</p>
+                <p className="text-xs text-slate-500 mt-1.5">Set the price for this paid material</p>
               </div>
             )}
 
@@ -1522,7 +1874,7 @@ const AdminMaterialManager = () => {
                       setFormData({ ...formData, type: value, file: null, url: '' });
                     }}
                   >
-                    <SelectTrigger className="bg-white text-slate-900 border-slate-300 hover:bg-slate-50">
+                    <SelectTrigger className="bg-white text-slate-900 border-slate-300 hover:bg-slate-50 h-11 sm:h-10 text-base sm:text-sm">
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
                     <SelectContent className="bg-white border-slate-200 z-[100]">
@@ -1662,15 +2014,487 @@ const AdminMaterialManager = () => {
               <p className="text-xs text-slate-500 mt-1">Separate multiple tags with commas</p>
             </div>
 
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-2 pt-4 sm:pt-6 border-t border-slate-200">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => { setIsDialogOpen(false); resetForm(); }}
+                className="w-full sm:w-auto h-12 sm:h-10 text-base sm:text-sm"
+              >
                 Cancel
               </Button>
-              <Button type="submit">
+              <Button 
+                type="submit"
+                className="w-full sm:w-auto h-12 sm:h-10 text-base sm:text-sm font-semibold"
+              >
                 {editingMaterial ? 'Update Material' : 'Upload Material'}
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ZIP Upload Dialog - Mobile Optimized */}
+      <Dialog open={isZipDialogOpen} onOpenChange={setIsZipDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
+          <DialogHeader>
+            <DialogTitle className="text-lg sm:text-xl">Bulk Upload Materials (ZIP)</DialogTitle>
+            <DialogDescription className="text-sm">
+              Upload a ZIP file containing PDF files. Each PDF will be created as a separate material entry.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleZipUpload} className="space-y-4 sm:space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="zipBranch" className="text-sm font-medium mb-2 block">Branch *</Label>
+                <Select 
+                  value={zipUploadData.branch} 
+                  onValueChange={(value) => {
+                    setZipUploadData({ ...zipUploadData, branch: value, semester: '', subjectCode: '', subjectId: '', subjectName: '' });
+                    setSelectedBranch(value);
+                  }}
+                  disabled={branches.length === 0}
+                >
+                  <SelectTrigger className="bg-white text-slate-900 border-slate-300 hover:bg-slate-50">
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-slate-200 z-[100]">
+                    {branches.map(branch => (
+                      <SelectItem key={branch} value={branch} className="text-slate-900 focus:bg-slate-100 cursor-pointer">{branch}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="zipSemester">Semester *</Label>
+                <Select 
+                  value={zipUploadData.semester} 
+                  onValueChange={(value) => {
+                    setZipUploadData({ ...zipUploadData, semester: value, subjectCode: '', subjectId: '', subjectName: '' });
+                    setSelectedSemester(value);
+                  }}
+                  disabled={!zipUploadData.branch}
+                >
+                  <SelectTrigger className="bg-white text-slate-900 border-slate-300 hover:bg-slate-50">
+                    <SelectValue placeholder="Select semester" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-slate-200 z-[100]">
+                    {semesters.map(sem => (
+                      <SelectItem key={sem} value={String(sem)} className="text-slate-900 focus:bg-slate-100 cursor-pointer">Semester {sem}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="zipSubject">Subject *</Label>
+              <Select 
+                value={zipUploadData.subjectCode} 
+                onValueChange={(value) => {
+                  const subject = subjects.find(s => s.code === value);
+                  setZipUploadData({ 
+                    ...zipUploadData, 
+                    subjectCode: value,
+                    subjectId: subject?._id || value,
+                    subjectName: subject?.name || ''
+                  });
+                }}
+                disabled={!zipUploadData.branch || !zipUploadData.semester || subjects.length === 0}
+              >
+                <SelectTrigger className="bg-white text-slate-900 border-slate-300 hover:bg-slate-50">
+                  <SelectValue placeholder={subjects.length === 0 ? "No subjects available - Add subjects first" : "Select subject"} />
+                </SelectTrigger>
+                {subjects.length > 0 && (
+                  <SelectContent className="bg-white border-slate-200 z-[100]">
+                    {subjects.map(subject => (
+                      <SelectItem key={subject.code || subject._id} value={subject.code} className="text-slate-900 focus:bg-slate-100 cursor-pointer">
+                        {subject.name} ({subject.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                )}
+              </Select>
+              {subjects.length === 0 && zipUploadData.branch && zipUploadData.semester && (
+                <p className="text-xs text-slate-500 mt-1">
+                  No subjects found for {zipUploadData.branch} - Semester {zipUploadData.semester}. Please add subjects in the Subjects section first.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="zipMaterialType">Material Type *</Label>
+              <Select 
+                value={zipUploadData.materialType} 
+                onValueChange={(value: 'pyqs' | 'model_answer_papers' | 'other') => {
+                  setZipUploadData({ ...zipUploadData, materialType: value });
+                }}
+              >
+                <SelectTrigger className="bg-white text-slate-900 border-slate-300 hover:bg-slate-50 h-11 sm:h-10 text-base sm:text-sm">
+                  <SelectValue placeholder="Select material type" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-slate-200 z-[100]">
+                  <SelectItem value="pyqs" className="text-slate-900 focus:bg-slate-100 cursor-pointer">PYQ (Previous Year Questions)</SelectItem>
+                  <SelectItem value="model_answer_papers" className="text-slate-900 focus:bg-slate-100 cursor-pointer">Model Answer Papers</SelectItem>
+                  <SelectItem value="other" className="text-slate-900 focus:bg-slate-100 cursor-pointer">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-slate-500 mt-1">Select the type of materials in the ZIP file</p>
+            </div>
+
+            <div>
+              <Label htmlFor="zipDescription" className="text-sm font-medium mb-2 block">Description (Optional)</Label>
+              <Textarea
+                id="zipDescription"
+                value={zipUploadData.description}
+                onChange={(e) => setZipUploadData({ ...zipUploadData, description: e.target.value })}
+                rows={4}
+                placeholder="Brief description for all materials in this ZIP"
+                className="text-base sm:text-sm min-h-[100px] sm:min-h-[80px]"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="zipTags" className="text-sm font-medium mb-2 block">Tags (Optional)</Label>
+              <Input
+                id="zipTags"
+                value={zipUploadData.tags}
+                onChange={(e) => setZipUploadData({ ...zipUploadData, tags: e.target.value })}
+                placeholder="e.g., Unit 1, MCQ, Revision (comma-separated)"
+                className="h-11 sm:h-10 text-base sm:text-sm"
+              />
+              <p className="text-xs text-slate-500 mt-1.5">Separate multiple tags with commas</p>
+            </div>
+
+            <div>
+              <Label htmlFor="zipFile" className="text-sm font-medium mb-2 block">ZIP File *</Label>
+              <Input
+                id="zipFile"
+                type="file"
+                accept=".zip,application/zip"
+                onChange={handleZipFileChange}
+                required
+                className="h-11 sm:h-10 text-base sm:text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              {zipUploadData.zipFile && (
+                <div className="mt-2 flex items-center gap-2">
+                  <File className="w-4 h-4 text-slate-600" />
+                  <span className="text-sm text-slate-600">{zipUploadData.zipFile.name}</span>
+                  <span className="text-xs text-slate-500">
+                    ({(zipUploadData.zipFile.size / (1024 * 1024)).toFixed(2)} MB)
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setZipUploadData({ ...zipUploadData, zipFile: null })}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              <p className="text-xs text-slate-500 mt-1">
+                Upload a ZIP file containing PDF files. All PDFs will be extracted and created as separate materials.
+              </p>
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-2 pt-4 sm:pt-6 border-t border-slate-200">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => { 
+                  setIsZipDialogOpen(false);
+                  setZipUploadData({
+                    branch: '',
+                    semester: '',
+                    subjectCode: '',
+                    subjectId: '',
+                    subjectName: '',
+                    materialType: 'pyqs',
+                    description: '',
+                    tags: '',
+                    zipFile: null
+                  });
+                }}
+                className="w-full sm:w-auto h-12 sm:h-10 text-base sm:text-sm"
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={zipUploading}
+                className="w-full sm:w-auto h-12 sm:h-10 text-base sm:text-sm font-semibold"
+              >
+                {zipUploading ? 'Uploading...' : 'Upload ZIP'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Material Dialog */}
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Import Material from Other Subject</DialogTitle>
+            <DialogDescription>
+              Select materials from another subject to import into {selectedSubject ? subjects.find(s => s.code === selectedSubject)?.name : 'current subject'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Source Selection */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="importBranch">Source Branch</Label>
+                <Select 
+                  value={importSource.branch} 
+                  onValueChange={(value) => {
+                    setImportSource({ ...importSource, branch: value, subjectCode: '', subjectId: '' });
+                    setImportMaterials([]);
+                    setSelectedImportMaterials([]);
+                  }}
+                >
+                  <SelectTrigger className="bg-white text-slate-900 border-slate-300 hover:bg-slate-50">
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-slate-200 z-[100]">
+                    <SelectItem value="all" className="text-slate-900 focus:bg-slate-100 cursor-pointer">All Branches</SelectItem>
+                    {branches.map(branch => (
+                      <SelectItem key={branch} value={branch} className="text-slate-900 focus:bg-slate-100 cursor-pointer">{branch}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="importSemester">Source Semester</Label>
+                <Select 
+                  value={importSource.semester} 
+                  onValueChange={(value) => {
+                    setImportSource({ ...importSource, semester: value, subjectCode: '', subjectId: '' });
+                    setImportMaterials([]);
+                    setSelectedImportMaterials([]);
+                  }}
+                >
+                  <SelectTrigger className="bg-white text-slate-900 border-slate-300 hover:bg-slate-50">
+                    <SelectValue placeholder="Select semester" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-slate-200 z-[100]">
+                    {DEFAULT_SEMESTERS.map(sem => (
+                      <SelectItem key={sem} value={String(sem)} className="text-slate-900 focus:bg-slate-100 cursor-pointer">Semester {sem}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Source Subject Selection */}
+            {importSource.semester && (
+              <div>
+                <Label htmlFor="importSubject">Source Subject</Label>
+                <Select 
+                  value={importSource.subjectCode} 
+                  onValueChange={(value) => {
+                    const subject = importSourceSubjects.find(s => s.code === value);
+                    setImportSource({ 
+                      ...importSource, 
+                      subjectCode: value,
+                      subjectId: subject?._id || ''
+                    });
+                    // Fetch materials after a short delay to ensure state is updated
+                    setTimeout(() => {
+                      fetchImportMaterials();
+                    }, 100);
+                  }}
+                  disabled={!importSource.semester || importSourceSubjects.length === 0}
+                >
+                  <SelectTrigger className="bg-white text-slate-900 border-slate-300 hover:bg-slate-50">
+                    <SelectValue placeholder={importSourceSubjects.length === 0 ? "No subjects available" : "Select subject"} />
+                  </SelectTrigger>
+                  {importSourceSubjects.length > 0 && (
+                    <SelectContent className="bg-white border-slate-200 z-[100]">
+                      {importSourceSubjects.map(subject => (
+                        <SelectItem key={subject.code || subject._id} value={subject.code} className="text-slate-900 focus:bg-slate-100 cursor-pointer">
+                          {subject.name} ({subject.code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  )}
+                </Select>
+              </div>
+            )}
+
+            {/* Fetch Materials Button */}
+            {importSource.subjectCode && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={fetchImportMaterials}
+                className="w-full"
+              >
+                <Search className="w-4 h-4 mr-2" />
+                Load Materials
+              </Button>
+            )}
+
+            {/* Filters */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="importType">Material Type</Label>
+                <Select 
+                  value={importSource.type} 
+                  onValueChange={(value) => {
+                    setImportSource({ ...importSource, type: value });
+                    fetchImportMaterials();
+                  }}
+                >
+                  <SelectTrigger className="bg-white text-slate-900 border-slate-300 hover:bg-slate-50">
+                    <SelectValue placeholder="All types" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-slate-200 z-[100]">
+                    <SelectItem value="all" className="text-slate-900 focus:bg-slate-100 cursor-pointer">All Types</SelectItem>
+                    <SelectItem value="pdf" className="text-slate-900 focus:bg-slate-100 cursor-pointer">PDF</SelectItem>
+                    <SelectItem value="video" className="text-slate-900 focus:bg-slate-100 cursor-pointer">Video</SelectItem>
+                    <SelectItem value="notes" className="text-slate-900 focus:bg-slate-100 cursor-pointer">Notes</SelectItem>
+                    <SelectItem value="link" className="text-slate-900 focus:bg-slate-100 cursor-pointer">Link</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="importResourceType">Academic Resource</Label>
+                <Select 
+                  value={importSource.resourceType} 
+                  onValueChange={(value) => {
+                    setImportSource({ ...importSource, resourceType: value });
+                    fetchImportMaterials();
+                  }}
+                >
+                  <SelectTrigger className="bg-white text-slate-900 border-slate-300 hover:bg-slate-50">
+                    <SelectValue placeholder="All resources" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-slate-200 z-[100]">
+                    <SelectItem value="all" className="text-slate-900 focus:bg-slate-100 cursor-pointer">All Resources</SelectItem>
+                    <SelectItem value="syllabus" className="text-slate-900 focus:bg-slate-100 cursor-pointer">Syllabus</SelectItem>
+                    <SelectItem value="notes" className="text-slate-900 focus:bg-slate-100 cursor-pointer">Notes</SelectItem>
+                    <SelectItem value="pyqs" className="text-slate-900 focus:bg-slate-100 cursor-pointer">PYQ</SelectItem>
+                    <SelectItem value="model_answer_papers" className="text-slate-900 focus:bg-slate-100 cursor-pointer">Model Answer Papers</SelectItem>
+                    <SelectItem value="question_bank" className="text-slate-900 focus:bg-slate-100 cursor-pointer">Question Bank</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Material List */}
+            {importSource.subjectCode && (
+              <div className="border rounded-lg p-4 max-h-96 overflow-y-auto">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold">Available Materials ({importMaterials.length})</h3>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="importAll"
+                      checked={importAll}
+                      onCheckedChange={(checked) => {
+                        setImportAll(checked as boolean);
+                        if (checked) {
+                          setSelectedImportMaterials(importMaterials.map(m => m._id));
+                        } else {
+                          setSelectedImportMaterials([]);
+                        }
+                      }}
+                    />
+                    <Label htmlFor="importAll" className="text-sm cursor-pointer">Select All</Label>
+                  </div>
+                </div>
+
+                {importMaterials.length === 0 ? (
+                  <p className="text-sm text-slate-500 text-center py-8">No materials found for the selected filters.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {importMaterials.map((material) => {
+                      const isSelected = selectedImportMaterials.includes(material._id);
+                      return (
+                        <div
+                          key={material._id}
+                          className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 ${
+                            isSelected ? 'bg-blue-50 border-blue-300' : ''
+                          }`}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedImportMaterials(selectedImportMaterials.filter(id => id !== material._id));
+                            } else {
+                              setSelectedImportMaterials([...selectedImportMaterials, material._id]);
+                            }
+                            setImportAll(false);
+                          }}
+                        >
+                          <div className="mt-1">
+                            {isSelected ? (
+                              <CheckSquare className="w-5 h-5 text-blue-600" />
+                            ) : (
+                              <Square className="w-5 h-5 text-slate-400" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge className={typeColors[material.type]}>{material.type}</Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {material.resourceType || 'notes'}
+                              </Badge>
+                            </div>
+                            <h4 className="font-medium text-sm">{material.title}</h4>
+                            {material.description && (
+                              <p className="text-xs text-slate-500 mt-1 line-clamp-1">{material.description}</p>
+                            )}
+                            {material.tags && material.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {material.tags.slice(0, 3).map((tag, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-xs">{tag}</Badge>
+                                ))}
+                                {material.tags.length > 3 && (
+                                  <Badge variant="outline" className="text-xs">+{material.tags.length - 3}</Badge>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => {
+                  setIsImportDialogOpen(false);
+                  setImportSource({
+                    branch: 'all',
+                    semester: '',
+                    subjectCode: '',
+                    subjectId: '',
+                    type: 'all',
+                    resourceType: 'all'
+                  });
+                  setImportMaterials([]);
+                  setSelectedImportMaterials([]);
+                  setImportAll(false);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleImportMaterials}
+                disabled={importLoading || (!importAll && selectedImportMaterials.length === 0) || !importSource.subjectCode}
+              >
+                {importLoading ? 'Importing...' : `Import ${importAll ? 'All' : selectedImportMaterials.length} Material(s)`}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -87,6 +87,11 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
       }
     }
     
+    // If relative URL starting with /api/materials/proxy/, keep it relative for proper proxying
+    if (normalizedUrl.startsWith('/api/materials/proxy/')) {
+      return normalizedUrl;
+    }
+    
     // If relative URL, make it absolute
     if (normalizedUrl.startsWith('/')) {
       return `${window.location.origin}${normalizedUrl}`;
@@ -290,7 +295,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
             width: `${100 / scale}%`
           }}
         >
-          {proxyUrl && proxyUrl !== 'data:;base64,=' && !proxyUrl.startsWith('data:;base64,=') && proxyUrl.startsWith('http') ? (
+          {proxyUrl && proxyUrl !== 'data:;base64,=' && !proxyUrl.startsWith('data:;base64,=') && (proxyUrl.startsWith('http') || proxyUrl.startsWith('/api/materials/proxy/')) ? (
             <iframe
               ref={iframeRef}
               src={proxyUrl}
