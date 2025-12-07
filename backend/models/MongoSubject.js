@@ -153,6 +153,53 @@ class MongoSubject {
     if (firebaseSubject) return await firebaseSubject.delete();
     return false;
   }
+
+  static async findByIdAndUpdate(id, updates) {
+    if (isMongoReady) {
+      try {
+        // Normalize code to uppercase if provided
+        if (updates.code) {
+          updates.code = updates.code.trim().toUpperCase();
+        }
+        
+        const subject = await SubjectModel.findByIdAndUpdate(
+          id,
+          { $set: { ...updates, updatedAt: new Date() } },
+          { new: true, runValidators: true }
+        );
+        return subject ? new MongoSubject(subject.toObject()) : null;
+      } catch (error) {
+        // Handle duplicate key error (code + branch combination already exists)
+        if (error.code === 11000) {
+          const duplicateField = error.keyPattern ? Object.keys(error.keyPattern)[0] : 'code';
+          throw new Error(`Subject with code ${updates.code} already exists for branch ${updates.branch || 'this branch'}`);
+        }
+        console.error('MongoDB subject findByIdAndUpdate error:', error);
+        throw error;
+      }
+    }
+    // Fallback to Firebase if MongoDB is not ready
+    return await FirebaseSubject.findByIdAndUpdate(id, updates);
+  }
+
+  static async findByIdAndDelete(id) {
+    if (isMongoReady) {
+      try {
+        const subject = await SubjectModel.findByIdAndDelete(id);
+        return subject ? new MongoSubject(subject.toObject()) : null;
+      } catch (error) {
+        console.error('MongoDB subject findByIdAndDelete error:', error);
+        return null;
+      }
+    }
+    // Fallback to Firebase if MongoDB is not ready
+    const firebaseSubject = await FirebaseSubject.findById(id);
+    if (firebaseSubject) {
+      await firebaseSubject.delete();
+      return firebaseSubject;
+    }
+    return null;
+  }
 }
 
 export default MongoSubject;

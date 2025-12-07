@@ -177,10 +177,13 @@ router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
     
     // Remove _id from updates if present
     delete updates._id;
-    const subject = await Subject.findByIdAndUpdate(
-      id,
-      { ...updates, updatedAt: new Date() }
-    );
+    
+    // Normalize code to uppercase if provided
+    if (updates.code) {
+      updates.code = updates.code.trim().toUpperCase();
+    }
+    
+    const subject = await Subject.findByIdAndUpdate(id, updates);
     
     if (!subject) {
       return res.status(404).json({ error: "Subject not found" });
@@ -190,7 +193,19 @@ router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
     res.status(200).json({ message: "Subject updated successfully", subject });
   } catch (err) {
     console.error("Error updating subject:", err);
-    res.status(500).json({ error: "Failed to update subject" });
+    
+    // Handle duplicate key error (code + branch combination already exists)
+    if (err.message && err.message.includes('already exists')) {
+      return res.status(400).json({ 
+        error: err.message,
+        code: 'DUPLICATE_SUBJECT'
+      });
+    }
+    
+    res.status(500).json({ 
+      error: "Failed to update subject",
+      details: err.message || 'Unknown error'
+    });
   }
 });
 
