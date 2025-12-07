@@ -174,6 +174,17 @@ router.get("/branch/:branch", authenticateToken, async (req, res) => {
 
 // Add new material (metadata)
 router.post("/", authenticateToken, requireAdmin, validate(materialCreateSchema), async (req, res) => {
+  // Guard to prevent duplicate responses
+  let responseSent = false;
+  const sendResponse = (status, data) => {
+    if (responseSent) {
+      console.warn('⚠️ Attempted to send duplicate response, ignoring');
+      return;
+    }
+    responseSent = true;
+    return res.status(status).json(data);
+  };
+  
   try {
     const { 
       title, 
@@ -234,7 +245,7 @@ router.post("/", authenticateToken, requireAdmin, validate(materialCreateSchema)
     
     // Validate drive_protected materials require googleDriveUrl
     if (finalAccessType === 'drive_protected' && !googleDriveUrl) {
-      return res.status(400).json({ 
+      return sendResponse(400, { 
         error: 'Google Drive URL is required for drive protected materials' 
       });
     }
@@ -243,7 +254,7 @@ router.post("/", authenticateToken, requireAdmin, validate(materialCreateSchema)
     if (finalAccessType === 'paid') {
       const finalPrice = Number(price) || 0;
       if (finalPrice <= 0) {
-        return res.status(400).json({ 
+        return sendResponse(400, { 
           error: 'Price must be greater than 0 for paid materials' 
         });
       }
@@ -259,38 +270,49 @@ router.post("/", authenticateToken, requireAdmin, validate(materialCreateSchema)
     let isCommonSubject = false;
     let allBranches = [];
     
+    // IMPORTANT: Always require branch selection - even for common subjects, create material only for selected branch
+    if (!branch) {
+      return sendResponse(400, { 
+        error: 'Branch must be selected' 
+      });
+    }
+    
+    const normalizedBranch = branch.trim();
+    
+    // Normalize subject code to uppercase for consistent matching
+    const normalizedSubjectCode = subjectCode ? subjectCode.trim().toUpperCase() : '';
+    
+    if (!normalizedSubjectCode && !subjectId) {
+      return sendResponse(400, { 
+        error: 'Subject code or subjectId is required' 
+      });
+    }
+    
+    // Try to find subject by subjectId first (if provided)
     if (subjectId) {
-      // Try to find by subjectId first (for common subjects)
       matchingSubject = await Subject.findById(subjectId);
       if (matchingSubject && matchingSubject.isCommon) {
         isCommonSubject = true;
         console.log(`✅ Found common subject: ${matchingSubject.name} (${matchingSubject.code})`);
-        // Get all branches for common subject
-        allBranches = await Subject.distinct('branch');
-        // Filter out null/undefined branches
-        allBranches = allBranches.filter(b => b && b.trim());
-        console.log(`📚 Common subject valid for ${allBranches.length} branches: ${allBranches.join(', ')}`);
+        // Even for common subjects, only create for the selected branch
+        allBranches = [normalizedBranch];
+        console.log(`📚 Common subject - creating material only for selected branch: ${normalizedBranch}`);
+      } else if (matchingSubject) {
+        // Not a common subject, verify it matches the selected branch
+        const subjectBranch = matchingSubject.branch ? matchingSubject.branch.trim() : '';
+        if (subjectBranch.toLowerCase() !== normalizedBranch.toLowerCase()) {
+          console.log(`⚠️ Subject branch "${subjectBranch}" does not match selected branch "${normalizedBranch}"`);
+          // Try to find by branch and code instead
+          matchingSubject = null;
+        } else {
+          allBranches = [normalizedBranch];
+          console.log(`✅ Found matching subject: ${matchingSubject.branch} - ${matchingSubject.code} (${matchingSubject.name})`);
+        }
       }
     }
     
-    // If not a common subject, require branch and find by branch and code
-    if (!isCommonSubject) {
-      if (!branch) {
-        return res.status(400).json({ 
-          error: 'Branch must be selected for non-common subjects' 
-        });
-      }
-      
-      // Normalize subject code to uppercase for consistent matching
-      const normalizedSubjectCode = subjectCode ? subjectCode.trim().toUpperCase() : '';
-      
-      if (!normalizedSubjectCode) {
-        return res.status(400).json({ 
-          error: 'Subject code is required' 
-        });
-      }
-      
-      const normalizedBranch = branch.trim();
+    // If not found by subjectId, or branch doesn't match, find by branch and code
+    if (!matchingSubject) {
       const escaped = normalizedBranch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const branchRegex = new RegExp(`^${escaped}$`, 'i');
       
@@ -299,102 +321,99 @@ router.post("/", authenticateToken, requireAdmin, validate(materialCreateSchema)
       
       // Find the specific subject with matching code
       matchingSubject = branchSubjects.find(subject => {
-        const subjectCode = subject.code ? subject.code.trim().toUpperCase() : '';
-        return subjectCode === normalizedSubjectCode;
+        const subjCode = subject.code ? subject.code.trim().toUpperCase() : '';
+        return subjCode === normalizedSubjectCode;
       });
       
       if (!matchingSubject) {
         console.log(`⚠️ Subject code "${normalizedSubjectCode}" not found in branch "${normalizedBranch}"`);
-        return res.status(400).json({ 
+        return sendResponse(400, { 
           error: `Subject with code "${subjectCode}" not found in branch "${branch}"` 
         });
       }
       
-      console.log(`✅ Found matching subject: ${matchingSubject.branch} - ${matchingSubject.code} (${matchingSubject.name})`);
-      allBranches = [matchingSubject.branch];
-    } else {
-      // For common subjects, validate subjectCode if provided
-      if (!subjectCode && !matchingSubject) {
-        return res.status(400).json({ 
-          error: 'Subject code or subjectId is required' 
-        });
+      if (matchingSubject.isCommon) {
+        isCommonSubject = true;
+        console.log(`✅ Found common subject: ${matchingSubject.name} (${matchingSubject.code})`);
       }
+      
+      console.log(`✅ Found matching subject: ${matchingSubject.branch} - ${matchingSubject.code} (${matchingSubject.name})`);
+      allBranches = [normalizedBranch];
     }
     
     if (!matchingSubject) {
-      return res.status(400).json({ 
+      return sendResponse(400, { 
         error: 'Subject not found' 
       });
     }
     
-    // Create material entry for the selected subject(s)
+    // Create material entry for the selected branch only (single material)
     const createdMaterials = [];
     const errors = [];
     
-    // For common subjects, create material for all branches
-    // For regular subjects, create for single branch
-    for (const targetBranch of allBranches) {
-      try {
-        const material = await Material.create({
-          title,
-          type,
-          url,
-          description: description || '',
-          uploadedBy,
-          subjectId: matchingSubject.id || matchingSubject._id,
-          subjectName: matchingSubject.name || subjectName,
-          branch: targetBranch,
-          branches: isCommonSubject ? allBranches : [targetBranch], // All branches for common, single for regular
-          semester: String(matchingSubject.semester || semester),
-          subjectCode: matchingSubject.code || subjectCode,
-          resourceType: resourceType || 'notes',
-          accessType: finalAccessType, // Use validated accessType
-          price: finalAccessType === 'paid' ? Number(price) : 0,
-          googleDriveUrl: finalAccessType === 'drive_protected' ? googleDriveUrl : null,
-          storageType: detectedStorageType,
-          tags: tags || [],
-          coverPhoto: coverPhoto || null
-        });
+    // Always create only ONE material for the selected branch
+    const targetBranch = allBranches[0]; // Only the selected branch
+    
+    try {
+      const material = await Material.create({
+        title,
+        type,
+        url,
+        description: description || '',
+        uploadedBy,
+        subjectId: matchingSubject.id || matchingSubject._id,
+        subjectName: matchingSubject.name || subjectName,
+        branch: targetBranch,
+        branches: [targetBranch], // Single branch array
+        semester: String(matchingSubject.semester || semester),
+        subjectCode: matchingSubject.code || subjectCode,
+        resourceType: resourceType || 'notes',
+        accessType: finalAccessType, // Use validated accessType
+        price: finalAccessType === 'paid' ? Number(price) : 0,
+        googleDriveUrl: finalAccessType === 'drive_protected' ? googleDriveUrl : null,
+        storageType: detectedStorageType,
+        tags: tags || [],
+        coverPhoto: coverPhoto || null
+      });
+    
+      console.log(`✅ Material created with accessType: "${finalAccessType}" for ${targetBranch} - ${matchingSubject.code} (${matchingSubject.name})`);
+      console.log(`📋 Created material details:`, {
+        title: title,
+        accessType: finalAccessType,
+        materialAccessType: material.accessType,
+        price: finalAccessType === 'paid' ? Number(price) : 0,
+        googleDriveUrl: finalAccessType === 'drive_protected' ? googleDriveUrl : null,
+        resourceType: resourceType,
+        branch: targetBranch,
+        isCommon: isCommonSubject
+      });
       
-        console.log(`✅ Material created with accessType: "${finalAccessType}" for ${targetBranch} - ${matchingSubject.code} (${matchingSubject.name})`);
-        console.log(`📋 Created material details:`, {
-          title: title,
-          accessType: finalAccessType,
-          materialAccessType: material.accessType,
-          price: finalAccessType === 'paid' ? Number(price) : 0,
-          googleDriveUrl: finalAccessType === 'drive_protected' ? googleDriveUrl : null,
-          resourceType: resourceType,
-          branch: targetBranch,
-          isCommon: isCommonSubject
-        });
-        
-        // CRITICAL: Verify the material has the correct accessType before adding
-        if (material.accessType !== finalAccessType) {
-          console.error(`❌ CRITICAL ERROR: Material accessType mismatch! Expected: "${finalAccessType}", Got: "${material.accessType}"`);
-          console.error(`❌ Material object:`, JSON.stringify(material.toJSON(), null, 2));
-        }
-        
-        createdMaterials.push(material);
-        console.log(`✅ Material created for ${targetBranch} - ${matchingSubject.code} (${matchingSubject.name})`);
-        
-        // Send notification
-        try {
-          await notificationService.notifyMaterialUploaded(material); 
-        } catch (notifErr) {
-          console.error('Notification error (non-fatal):', notifErr);
-        }
-      } catch (err) {
-        console.error(`❌ Error creating material for ${targetBranch} - ${matchingSubject.code}:`, err);
-        errors.push({
-          branch: targetBranch,
-          code: matchingSubject.code,
-          error: err.message
-        });
+      // CRITICAL: Verify the material has the correct accessType before adding
+      if (material.accessType !== finalAccessType) {
+        console.error(`❌ CRITICAL ERROR: Material accessType mismatch! Expected: "${finalAccessType}", Got: "${material.accessType}"`);
+        console.error(`❌ Material object:`, JSON.stringify(material.toJSON(), null, 2));
       }
+      
+      createdMaterials.push(material);
+      console.log(`✅ Material created for ${targetBranch} - ${matchingSubject.code} (${matchingSubject.name})`);
+      
+      // Send notification
+      try {
+        await notificationService.notifyMaterialUploaded(material); 
+      } catch (notifErr) {
+        console.error('Notification error (non-fatal):', notifErr);
+      }
+    } catch (err) {
+      console.error(`❌ Error creating material for ${targetBranch} - ${matchingSubject.code}:`, err);
+      errors.push({
+        branch: targetBranch,
+        code: matchingSubject.code,
+        error: err.message
+      });
     }
     
     if (createdMaterials.length === 0) {
-      return res.status(500).json({ 
+      return sendResponse(500, { 
         error: "Failed to create material",
         details: errors
       });
@@ -403,25 +422,39 @@ router.post("/", authenticateToken, requireAdmin, validate(materialCreateSchema)
     console.log(`✅ Successfully created material`);
     
     // CRITICAL: Ensure accessType is preserved in response
-    const responseMaterials = createdMaterials.map(m => {
-      const materialJson = m.toJSON ? m.toJSON() : m;
-      console.log(`📤 Sending material in response with accessType: "${materialJson.accessType}"`);
-      return {
-        ...materialJson,
-        accessType: materialJson.accessType || m.accessType || 'free', // Explicitly preserve
-        price: materialJson.price || m.price || 0,
-        googleDriveUrl: materialJson.googleDriveUrl || m.googleDriveUrl || null
-      };
-    });
+    // Only send the single created material
+    const createdMaterial = createdMaterials[0];
+    if (!createdMaterial) {
+      return sendResponse(500, { 
+        error: "Failed to create material",
+        details: errors
+      });
+    }
     
-    res.status(201).json({ 
+    // Convert to JSON once
+    const materialJson = createdMaterial.toJSON ? createdMaterial.toJSON() : createdMaterial;
+    
+    // Build response material object
+    const responseMaterial = {
+      ...materialJson,
+      accessType: materialJson.accessType || createdMaterial.accessType || 'free',
+      price: materialJson.price || createdMaterial.price || 0,
+      googleDriveUrl: materialJson.googleDriveUrl || createdMaterial.googleDriveUrl || null
+    };
+    
+    // Log once before sending response
+    console.log(`📤 Sending material in response with accessType: "${responseMaterial.accessType}"`);
+    
+    // Send response once
+    return sendResponse(201, { 
       message: "Material added successfully",
-      materials: responseMaterials,
+      material: responseMaterial, // Single material object
+      materials: [responseMaterial], // Array for backward compatibility
       count: 1
     });
   } catch (err) {
     console.error("Error adding material:", err);
-    res.status(500).json({ error: "Failed to add material", details: err.message });
+    return sendResponse(500, { error: "Failed to add material", details: err.message });
   }
 });
 
