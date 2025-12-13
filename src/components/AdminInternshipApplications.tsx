@@ -95,6 +95,66 @@ const AdminInternshipApplications = () => {
     loadApplications();
   }, []);
 
+  // Listen for real-time updates via custom events from AdminDashboard
+  useEffect(() => {
+    const handleRefresh = () => {
+      loadApplications();
+    };
+
+    window.addEventListener('internships:refresh', handleRefresh);
+
+    return () => {
+      window.removeEventListener('internships:refresh', handleRefresh);
+    };
+  }, []);
+
+  // Also listen to WebSocket messages directly if available
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (!message?.type) return;
+        
+        switch (message.type) {
+          case 'internship_application_new': {
+            // Reload applications to get the latest data
+            loadApplications();
+            const payload = message.application || {};
+            toast({
+              title: "New internship application",
+              description: `${payload.name || 'Student'} from ${payload.collegeName || 'Unknown college'}`,
+            });
+            break;
+          }
+          case 'internship_application_deleted': {
+            // Remove the deleted application from the list
+            const applicationId = message.applicationId;
+            setApplications((prev) => prev.filter((app) => app.id !== applicationId));
+            toast({
+              title: "Application deleted",
+              description: "The internship application has been removed.",
+            });
+            break;
+          }
+        }
+      } catch (error) {
+        // Ignore parsing errors
+      }
+    };
+
+    // Attach to existing WebSocket if available
+    const anyWindow: any = window as any;
+    if (anyWindow?.webSocketInstance) {
+      anyWindow.webSocketInstance.addEventListener('message', handler);
+    }
+
+    return () => {
+      if (anyWindow?.webSocketInstance) {
+        anyWindow.webSocketInstance.removeEventListener('message', handler);
+      }
+    };
+  }, [toast]);
+
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this internship application? This action cannot be undone.")) return;
     try {

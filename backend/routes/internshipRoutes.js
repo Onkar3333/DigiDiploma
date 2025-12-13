@@ -8,6 +8,7 @@ import { internshipApplicationSchema } from '../middleware/validation.js';
 import { admin, isFirebaseReady } from '../lib/firebase.js';
 import { firebaseConfig } from '../firebase-config.js';
 import { uploadFile } from '../lib/r2Client.js';
+import notificationService from '../websocket.js';
 
 const router = express.Router();
 
@@ -119,6 +120,30 @@ router.post('/apply', async (req, res) => {
       userId: payload.userId || null,
     });
 
+    // Broadcast WebSocket notification to admins for real-time updates
+    try {
+      await notificationService.broadcastToAdmins({
+        type: 'internship_application_new',
+        application: {
+          id: application.id,
+          name: application.name,
+          email: application.email,
+          phone: application.phone,
+          collegeName: application.collegeName,
+          branch: application.branch,
+          semester: application.semester,
+          type: application.type,
+          mode: application.mode,
+          duration: application.duration,
+          preferredLocation: application.preferredLocation,
+          internshipType: application.internshipType,
+          createdAt: application.createdAt || new Date().toISOString()
+        }
+      });
+    } catch (notifyError) {
+      console.error('Failed to broadcast internship application notification:', notifyError?.message || notifyError);
+    }
+
     res.status(201).json({ message: 'Application submitted successfully', application });
   } catch (error) {
     console.error('Error submitting internship application:', error);
@@ -162,6 +187,17 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
     const { id } = req.params;
     if (!id) return res.status(400).json({ error: 'Application ID is required' });
     await FirebaseInternshipApplication.delete(id);
+    
+    // Broadcast WebSocket notification to admins for real-time updates
+    try {
+      await notificationService.broadcastToAdmins({
+        type: 'internship_application_deleted',
+        applicationId: id
+      });
+    } catch (notifyError) {
+      console.error('Failed to broadcast internship application deletion notification:', notifyError?.message || notifyError);
+    }
+    
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting internship application:', error);

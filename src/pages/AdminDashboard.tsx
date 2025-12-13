@@ -1251,6 +1251,29 @@ const AdminDashboard: React.FC = () => {
             window.dispatchEvent(new CustomEvent('messages:refresh', { detail: { type: 'project' } }));
             break;
           }
+          case 'internship_application_new': {
+            const payload = message.application || {};
+            toast.success(`New internship application from ${payload.name || 'Student'}`, {
+              description: `${payload.email || 'Unknown email'} • ${payload.branch || ''} • Sem ${payload.semester || ''}`
+            });
+            addNotification({
+              id: `internship-${payload.id || Date.now()}`,
+              type: 'internship',
+              title: `New internship application: ${payload.name || 'Unknown'}`,
+              description: `${payload.collegeName || 'Unknown college'} • ${payload.type || 'N/A'} • ${payload.mode || 'N/A'}`,
+              timestamp: payload.createdAt || new Date().toISOString(),
+              read: false
+            });
+            window.dispatchEvent(new CustomEvent('internships:refresh'));
+            fetchDashboardSummary();
+            break;
+          }
+          case 'internship_application_deleted': {
+            const applicationId = message.applicationId;
+            window.dispatchEvent(new CustomEvent('internships:refresh'));
+            fetchDashboardSummary();
+            break;
+          }
 
           // Maintenance mode
           case 'maintenance':
