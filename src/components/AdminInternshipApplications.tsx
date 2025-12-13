@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { fetchInternshipApplications, deleteInternshipApplication } from "@/lib/internship";
 import { useToast } from "@/hooks/use-toast";
+import { getResumeProxyUrl } from "@/lib/urlUtils";
 import { jsPDF } from "jspdf";
 import * as XLSX from "xlsx";
 import { Download, RefreshCcw, Trash2, FileText, Search } from "lucide-react";
@@ -384,7 +385,18 @@ const AdminInternshipApplications = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => window.open(app.resumeUrl, "_blank", "noopener")}
+                        onClick={() => {
+                          const proxyUrl = getResumeProxyUrl(app.resumeUrl);
+                          if (proxyUrl) {
+                            window.open(proxyUrl, "_blank", "noopener");
+                          } else {
+                            toast({
+                              title: "Resume URL not available",
+                              description: "Unable to load resume.",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
                         disabled={!app.resumeUrl}
                       >
                         <FileText className="w-4 h-4 mr-2" />

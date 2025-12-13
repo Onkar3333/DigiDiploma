@@ -193,3 +193,69 @@ async function fetchAndDownload(url: string, filename: string): Promise<void> {
   }
 }
 
+/**
+ * Convert resume URLs (internship files) to proxy URLs
+ * Handles localhost URLs, R2 direct URLs, and ensures proper proxy format
+ */
+export function getResumeProxyUrl(url: string | undefined | null): string {
+  if (!url) return '';
+  
+  try {
+    // First normalize localhost URLs to relative paths
+    const normalizedUrl = normalizeBackendUrl(url);
+    
+    // If already using proxy, ensure it's relative
+    if (normalizedUrl.includes('/api/materials/proxy/r2/')) {
+      // If it starts with http:// or https://, make it relative
+      if (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://')) {
+        try {
+          const urlObj = new URL(normalizedUrl);
+          return urlObj.pathname + urlObj.search;
+        } catch {
+          return normalizedUrl;
+        }
+      }
+      return normalizedUrl;
+    }
+    
+    // Check if it's an R2 URL that needs proxy conversion
+    if (normalizedUrl.includes('r2.cloudflarestorage.com')) {
+      try {
+        const urlObj = new URL(normalizedUrl);
+        const pathParts = urlObj.pathname.split('/').filter(Boolean);
+        
+        // Extract the key (skip bucket name if it's the first part)
+        let key = '';
+        if (pathParts.length > 1) {
+          // Format: /bucket-name/internships/filename.pdf
+          // Skip bucket name, use rest as key
+          key = pathParts.slice(1).join('/');
+        } else if (pathParts.length === 1) {
+          // Format: /key (bucket in subdomain)
+          key = pathParts[0];
+        }
+        
+        if (key) {
+          // Ensure proper encoding
+          const proxyUrl = `/api/materials/proxy/r2/${encodeURIComponent(key)}`;
+          console.log('Converting resume R2 URL to proxy:', normalizedUrl, '->', proxyUrl);
+          return proxyUrl;
+        }
+      } catch (e) {
+        console.warn('Failed to parse resume R2 URL:', e, normalizedUrl);
+      }
+    }
+    
+    // For relative URLs, return as is
+    if (normalizedUrl.startsWith('/')) {
+      return normalizedUrl;
+    }
+    
+    // For absolute URLs, return as is (shouldn't happen after normalization)
+    return normalizedUrl;
+  } catch (error) {
+    console.warn('Error converting resume URL to proxy:', error, url);
+    return url || '';
+  }
+}
+
