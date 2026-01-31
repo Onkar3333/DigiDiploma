@@ -2,7 +2,8 @@ import mongoose from 'mongoose';
 import { isMongoReady } from '../lib/mongodb.js';
 
 const paymentSchema = new mongoose.Schema({
-  userId: { type: String, required: true, index: true },
+  userId: { type: String, default: null, index: true }, // null for guest checkout
+  guestId: { type: String, default: null, index: true }, // for guest purchases (no login)
   materialId: { type: String, required: true, index: true },
   razorpayOrderId: { type: String, required: true, unique: true, index: true },
   razorpayPaymentId: { type: String, default: null, index: true },
@@ -23,6 +24,7 @@ const paymentSchema = new mongoose.Schema({
 
 // Compound index for efficient queries
 paymentSchema.index({ userId: 1, materialId: 1 });
+paymentSchema.index({ guestId: 1, materialId: 1 });
 paymentSchema.index({ razorpayOrderId: 1, status: 1 });
 
 const PaymentModel = mongoose.models.Payment || mongoose.model('Payment', paymentSchema);
@@ -31,7 +33,8 @@ class MongoPayment {
   constructor(data) {
     this._id = data._id?.toString();
     this.id = this._id;
-    this.userId = data.userId;
+    this.userId = data.userId || null;
+    this.guestId = data.guestId || null;
     this.materialId = data.materialId;
     this.razorpayOrderId = data.razorpayOrderId;
     this.razorpayPaymentId = data.razorpayPaymentId || null;
@@ -52,7 +55,8 @@ class MongoPayment {
 
     try {
       const payment = await PaymentModel.create({
-        userId: paymentData.userId,
+        userId: paymentData.userId ?? null,
+        guestId: paymentData.guestId ?? null,
         materialId: paymentData.materialId,
         razorpayOrderId: paymentData.razorpayOrderId,
         razorpayPaymentId: paymentData.razorpayPaymentId || null,

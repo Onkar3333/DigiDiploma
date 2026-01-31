@@ -1,46 +1,54 @@
-import { db } from '../lib/firebase.js';
-import FirebaseUser from '../models/FirebaseUser.js';
 import bcrypt from 'bcryptjs';
+import { connectMongoDB } from '../lib/mongodb.js';
+import User, { MongoUser } from '../models/User.js';
 
 async function ensureAdmin(email, password) {
-  // Try to find existing admin by email
-  const existing = await FirebaseUser.findOne({ $or: [{ email }, { studentId: 'ADMIN001' }] });
+  // Normalize email
+  const normalizedEmail = email.toLowerCase();
 
-  const hashed = await FirebaseUser.hashPassword(password);
+  // Try to find existing admin/user by email or ADMIN001 studentId
+  let existing = await MongoUser.findOne({
+    $or: [{ email: normalizedEmail }, { studentId: 'ADMIN001' }],
+  });
+
+  const hashed = await bcrypt.hash(password, 10);
 
   if (existing) {
     // Update password and ensure admin role
-    await db.collection('users').doc(existing.id).update({
-      password: hashed,
-      userType: 'admin',
-      branch: existing.branch || 'Administration',
-      semester: existing.semester ?? 'N/A',
-      updatedAt: new Date()
-    });
+    existing.password = hashed;
+    existing.userType = 'admin';
+    existing.branch = existing.branch || 'Administration';
+    existing.semester = existing.semester ?? null;
+    await existing.save();
     return { id: existing.id, updated: true };
   }
 
-  // Create new admin
-  const adminUser = await FirebaseUser.create({
+  // Create new admin (MongoUser.create will hash again, so pass plain password)
+  const adminUser = await MongoUser.create({
     name: 'Admin User',
-    email,
-    password: hashed, // hashed already
+    email: normalizedEmail,
+    password,
     college: 'Digital Gurukul',
     studentId: 'ADMIN001',
     branch: 'Administration',
-    semester: 'N/A',
-    userType: 'admin'
+    semester: 0,
+    userType: 'admin',
   });
   return { id: adminUser.id, created: true };
 }
 
 async function main() {
   try {
-    const email = process.env.ADMIN_EMAIL || 'admin@eduportal.com';
-    const password = process.env.ADMIN_PASSWORD || 'admin123';
+    const connected = await connectMongoDB();
+    if (!connected) {
+      throw new Error('MongoDB connection failed. Cannot create admin user.');
+    }
+
+    const email = process.env.ADMIN_EMAIL || 'admin@digidiploma.in';
+    const password = process.env.ADMIN_PASSWORD || 'Admin@12345';
 
     const result = await ensureAdmin(email, password);
-    console.log('Admin ready:', { email, ...result });
+    console.log('✅ Admin ready:', { email, ...result });
     process.exit(0);
   } catch (err) {
     console.error('Failed to create/update admin:', err);
@@ -50,5 +58,4 @@ async function main() {
 
 // Run the main function
 main();
-
 

@@ -56,7 +56,9 @@ router.get("/", authenticateToken, async (req, res) => {
 });
 
 // Get subjects by branch and semester (grouped by semester)
-router.get("/branch/:branch", authenticateToken, async (req, res) => {
+// NOTE: This endpoint is now public read-only to allow
+// unauthenticated students to browse materials.
+router.get("/branch/:branch", async (req, res) => {
   try {
     const { branch } = req.params;
     const { semester } = req.query;

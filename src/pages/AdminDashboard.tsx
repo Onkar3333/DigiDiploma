@@ -161,6 +161,7 @@ const ELECTRICAL_SUBJECTS = {
 
 const AdminDashboard: React.FC = () => {
   const { user, isAuthenticated, login, logout, refreshToken } = useAuth();
+  const isAdmin = isAuthenticated && user?.userType === 'admin';
   const [showLoginForm, setShowLoginForm] = useState(false);
   const [realtimeTick, setRealtimeTick] = useState(0);
 
@@ -273,41 +274,10 @@ const AdminDashboard: React.FC = () => {
       toast.error("Access denied. Admin privileges required.");
       logout();
       setShowLoginForm(true);
+    } else {
+      setShowLoginForm(false);
     }
-  }, [isAuthenticated, user, logout]);
-
-  // Show login form if not authenticated or not admin
-  if (!isAuthenticated || user?.userType !== 'admin') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full space-y-8">
-          <div className="text-center">
-            <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-              Admin Dashboard
-            </h2>
-            <p className="mt-2 text-sm text-gray-600">
-              Please log in with admin credentials
-            </p>
-          </div>
-          <LoginForm 
-            onLogin={async (credentials) => {
-              const success = await login(credentials);
-              if (success) {
-                setShowLoginForm(false);
-              }
-            }}
-            onCreate={async (credentials) => {
-              const success = await login(credentials);
-              if (success) {
-                setShowLoginForm(false);
-              }
-            }}
-            onClose={() => setShowLoginForm(false)}
-          />
-        </div>
-      </div>
-    );
-  }
+  }, [isAuthenticated, user, logout, toast]);
 
   // Replace section and tab with a single activePanel state
   const [activePanel, setActivePanel] = useState('dashboard'); // default to 'dashboard'
@@ -1343,6 +1313,39 @@ const AdminDashboard: React.FC = () => {
       }
     } catch {}
   };
+
+  // If not an admin, show the embedded login view
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+              Admin Dashboard
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Please log in with admin credentials
+            </p>
+          </div>
+          <LoginForm 
+            onLogin={async (credentials) => {
+              const success = await login(credentials);
+              if (success) {
+                setShowLoginForm(false);
+              }
+            }}
+            onCreate={async (credentials) => {
+              const success = await login(credentials);
+              if (success) {
+                setShowLoginForm(false);
+              }
+            }}
+            onClose={() => setShowLoginForm(false)}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50">

@@ -75,6 +75,45 @@ export const requireStudent = (req, res, next) => {
   }
 };
 
+/** Optional auth: sets req.user when token valid, req.user=null when no/invalid token. Never returns 401. */
+export const authenticateOptional = async (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    req.user = null;
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, getJWTSecret());
+    const userId = decoded.userId;
+    if (!userId) {
+      req.user = null;
+      return next();
+    }
+
+    let user = await User.findById(userId);
+    if (!user) user = await User.findOne({ id: userId });
+    if (!user) {
+      req.user = null;
+      return next();
+    }
+
+    const userJson = user.toJSON ? user.toJSON() : user;
+    req.user = {
+      ...userJson,
+      id: userJson.id || userJson._id,
+      _id: userJson._id || userJson.id,
+      userId: userJson.id || userJson._id
+    };
+    next();
+  } catch {
+    req.user = null;
+    next();
+  }
+};
+
 // Authenticate token but allow expired tokens (for refresh endpoint)
 export const authenticateTokenAllowExpired = async (req, res, next) => {
   const authHeader = req.headers['authorization'];

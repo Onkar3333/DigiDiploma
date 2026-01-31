@@ -2,45 +2,35 @@ import express from "express";
 const router = express.Router();
 import Razorpay from "razorpay";
 import crypto from "crypto";
-import { authenticateToken } from "../middleware/auth.js";
+import { authenticateToken, authenticateOptional } from "../middleware/auth.js";
 import Payment from "../models/Payment.js";
 import Material from "../models/Material.js";
 import DownloadToken from "../models/DownloadToken.js";
 
-// Initialize Razorpay
+// Initialize Razorpay - sanitize keys to avoid 401 from hidden chars
+function sanitizeKey(val) {
+  if (typeof val !== 'string') return '';
+  return val.replace(/["'\r\n]/g, '').trim();
+}
+
+function getRazorpayInstance() {
+  const keyId = sanitizeKey(process.env.RAZORPAY_KEY_ID);
+  const keySecret = sanitizeKey(process.env.RAZORPAY_KEY_SECRET);
+  if (!keyId || !keySecret) return null;
+  return new Razorpay({ key_id: keyId, key_secret: keySecret });
+}
+
 let razorpayInstance = null;
-
 try {
-  const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID?.trim();
-  const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET?.trim();
-
-  console.log("🔍 Checking Razorpay configuration:", {
-    hasKeyId: !!RAZORPAY_KEY_ID,
-    hasKeySecret: !!RAZORPAY_KEY_SECRET,
-    keyIdPrefix: RAZORPAY_KEY_ID?.substring(0, 8) || 'none',
-    keySecretLength: RAZORPAY_KEY_SECRET?.length || 0
-  });
-
-  if (RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET) {
-    razorpayInstance = new Razorpay({
-      key_id: RAZORPAY_KEY_ID,
-      key_secret: RAZORPAY_KEY_SECRET,
-    });
-    console.log("✅ Razorpay initialized successfully");
-    console.log("✅ Key ID:", RAZORPAY_KEY_ID.substring(0, 12) + "...");
+  razorpayInstance = getRazorpayInstance();
+  if (razorpayInstance) {
+    const keyId = sanitizeKey(process.env.RAZORPAY_KEY_ID);
+    console.log("✅ Razorpay initialized (live keys):", keyId?.substring(0, 12) + "...");
   } else {
-    console.warn("⚠️ Razorpay credentials not found in environment variables");
-    if (!RAZORPAY_KEY_ID) {
-      console.warn("   - RAZORPAY_KEY_ID is missing");
-    }
-    if (!RAZORPAY_KEY_SECRET) {
-      console.warn("   - RAZORPAY_KEY_SECRET is missing");
-    }
-    console.warn("   - Make sure these are set in backend/.env and restart the server");
+    console.warn("⚠️ Razorpay keys missing in .env");
   }
 } catch (error) {
-  console.error("❌ Failed to initialize Razorpay:", error);
-  console.error("   Error details:", error.message);
+  console.error("❌ Razorpay init error:", error.message);
 }
 
 // Verify order exists in Razorpay (for debugging and validation)
@@ -104,7 +94,7 @@ router.get("/verify-order/:orderId", authenticateToken, async (req, res) => {
   }
 });
 
-// Check Razorpay configuration status (for debugging)
+// Check Razorpay configuration status (for debugging) - requires auth
 router.get("/config-status", authenticateToken, async (req, res) => {
   try {
     const hasKeyId = !!process.env.RAZORPAY_KEY_ID;
@@ -126,42 +116,107 @@ router.get("/config-status", authenticateToken, async (req, res) => {
   }
 });
 
-// Create Razorpay payment link with UPI QR code
-router.post("/create-payment-link", authenticateToken, async (req, res) => {
+// Public Razorpay availability check (no auth) - for Materials page to show Pay button
+router.get("/razorpay-available", (req, res) => {
+  try {
+    const configured = !!razorpayInstance;
+    res.status(200).json({
+      configured,
+      message: configured ? "Razorpay is available for payments" : "Payment gateway not configured"
+    });
+  } catch (error) {
+    res.status(500).json({ configured: false, error: error.message });
+  }
+});
+
+// Verify Razorpay keys work (no auth) - for debugging 401 errors
+router.get("/verify-keys", async (req, res) => {
+  try {
+    const keyId = sanitizeKey(process.env.RAZORPAY_KEY_ID);
+    const keySecret = sanitizeKey(process.env.RAZORPAY_KEY_SECRET);
+    if (!keyId || !keySecret) {
+      return res.status(200).json({ ok: false, error: "Keys missing in .env", keyIdLen: keyId?.length || 0, keySecretLen: keySecret?.length || 0 });
+    }
+    const instance = getRazorpayInstance();
+    if (!instance) {
+      return res.status(200).json({ ok: false, error: "Failed to create Razorpay instance" });
+    }
+    // Minimal API call - 404 (order not found) = auth passed; 401 = auth failed
+    try {
+      await instance.orders.fetch("order_verify_test_123");
+    } catch (e) {
+      if (e?.statusCode === 404 || (e?.error?.description && e.error.description.includes('not found'))) {
+        return res.status(200).json({ ok: true, message: "Keys work (404 for fake order = auth passed)" });
+      }
+      if (e?.statusCode === 401 || (e?.error?.description && e.error.description.includes('Authentication failed'))) {
+        return res.status(200).json({
+          ok: false,
+          error: "Keys invalid",
+          hint: "Re-copy Key ID and Secret from Razorpay Dashboard > Settings > API Keys. Generate a new key pair if needed."
+        });
+      }
+      throw e;
+    }
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    const is401 = err?.statusCode === 401 || err?.error?.code === 'BAD_REQUEST_ERROR';
+    res.status(200).json({
+      ok: false,
+      error: is401 ? "Authentication failed - keys invalid" : err?.message,
+      hint: is401 ? "Re-copy both keys from Razorpay Dashboard > Settings > API Keys." : null
+    });
+  }
+});
+
+// Create Razorpay payment link with UPI QR code (supports guest checkout - NO auth required)
+router.post("/create-payment-link", async (req, res) => {
   try {
     if (!razorpayInstance) {
       console.warn("⚠️ Razorpay not configured - payment link creation failed");
       return res.status(503).json({ 
-        error: "Payment service is not configured. Please contact administrator.",
+        error: "Payment service is not configured. Please contact administrator.",  
         code: "PAYMENT_NOT_CONFIGURED",
         details: "Razorpay credentials are missing. Please configure RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in backend/.env"
       });
     }
 
-    const { materialId } = req.body;
-    const userId = req.user.id;
+    const { materialId, guestId } = req.body;
+    let userId = null;
+    try {
+      const authHeader = req.headers['authorization'];
+      const token = authHeader && authHeader.split(' ')[1];
+      const secret = process.env.JWT_SECRET;
+      if (token && secret) {
+        const jwt = await import('jsonwebtoken');
+        const User = (await import('../models/User.js')).default;
+        const decoded = jwt.default.verify(token, secret);
+        const user = await User.findById(decoded.userId) || await User.findOne({ id: decoded.userId });
+        if (user) userId = user.id || user._id;
+      }
+    } catch (_) { /* optional auth - ignore */ }
+    const effectiveGuestId = guestId || null;
 
     if (!materialId) {
       return res.status(400).json({ error: "Material ID is required" });
     }
+    if (!userId && !effectiveGuestId) {
+      return res.status(400).json({ error: "Provide guestId in request body for guest checkout" });
+    }
 
-    // Fetch the material
     const material = await Material.findById(materialId);
     if (!material) {
       return res.status(404).json({ error: "Material not found" });
     }
 
-    // Check if material is paid
     if (material.accessType !== 'paid') {
       return res.status(400).json({ 
         error: "This material is not a paid material" 
       });
     }
 
-    // Check if user has already purchased this material
+    const purchaseQuery = userId ? { userId, materialId } : { guestId: effectiveGuestId, materialId };
     const existingPayment = await Payment.findOne({
-      userId,
-      materialId,
+      ...purchaseQuery,
       status: 'completed'
     });
 
@@ -172,45 +227,52 @@ router.post("/create-payment-link", authenticateToken, async (req, res) => {
       });
     }
 
-    // Convert price from rupees to paise
-    const amountInPaise = Math.round(material.price * 100);
+    const price = Number(material.price) || 0;
+    const amountInPaise = Math.round(price * 100);
 
     if (amountInPaise <= 0) {
       return res.status(400).json({ error: "Invalid material price" });
     }
+    if (amountInPaise < 100) {
+      return res.status(400).json({ error: "Amount too small", details: "Minimum payment is ₹1" });
+    }
 
-    // Create payment link with UPI QR code
     const paymentLinkOptions = {
       amount: amountInPaise,
       currency: "INR",
-      description: `Purchase: ${material.title}`,
-      customer: {
-        name: req.user.name || 'Customer',
-        email: req.user.email || undefined,
-        contact: req.user.phone || undefined
-      },
-      notify: {
-        sms: false,
-        email: false
-      },
+      description: `Purchase: ${material.title || 'Material'}`,
+      customer: { name: 'Customer' },
+      notify: { sms: false, email: false },
       reminder_enable: false,
       notes: {
-        materialId: materialId,
-        materialTitle: material.title,
-        userId: userId,
+        materialId: String(materialId),
+        materialTitle: (material.title || '').substring(0, 100),
+        ...(userId && { userId: String(userId) }),
+        ...(effectiveGuestId && { guestId: String(effectiveGuestId) }),
       },
-      callback_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment-success?materialId=${materialId}`,
+      callback_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/materials?materialId=${materialId}`,
       callback_method: 'get'
     };
 
-    const paymentLink = await razorpayInstance.paymentLink.create(paymentLinkOptions);
-
-    // Create order ID from payment link ID for tracking
+    let paymentLink;
+    try {
+      paymentLink = await razorpayInstance.paymentLink.create(paymentLinkOptions);
+    } catch (razorpayErr) {
+      console.error('Razorpay payment link error:', razorpayErr?.error || razorpayErr);
+      const desc = razorpayErr?.error?.description || razorpayErr?.message || String(razorpayErr);
+      const isAuth = razorpayErr?.statusCode === 401 || razorpayErr?.error?.code === 'BAD_REQUEST_ERROR';
+      return res.status(500).json({
+        error: isAuth ? 'Razorpay authentication failed' : 'Payment link creation failed',
+        details: isAuth
+          ? 'Check RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in backend/.env. Use live keys (rzp_live_) for production.'
+          : desc
+      });
+    }
     const orderId = `order_${paymentLink.id}`;
 
-    // Save payment record
     const payment = await Payment.create({
-      userId,
+      userId: userId || undefined,
+      guestId: effectiveGuestId || undefined,
       materialId,
       razorpayOrderId: orderId,
       amount: amountInPaise,
@@ -235,18 +297,19 @@ router.post("/create-payment-link", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating payment link:", error);
+    const message = error?.error?.description || error?.message || String(error);
     res.status(500).json({ 
       error: "Failed to create payment link",
-      details: error.message 
+      details: message
     });
   }
 });
 
-// Create Razorpay order for material purchase
-router.post("/create-order", authenticateToken, async (req, res) => {
+// Create Razorpay order for material purchase (supports guest checkout - NO auth required)
+router.post("/create-order", async (req, res) => {
   try {
     if (!razorpayInstance) {
-      console.warn("⚠️ Razorpay not configured - order creation failed");
+      console.warn("Razorpay not configured - order creation failed");
       console.warn("⚠️ Check if RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are set in backend/.env");
       console.warn("⚠️ Current env check:", {
         hasKeyId: !!process.env.RAZORPAY_KEY_ID,
@@ -261,11 +324,27 @@ router.post("/create-order", authenticateToken, async (req, res) => {
       });
     }
 
-    const { materialId } = req.body;
-    const userId = req.user.id;
+    const { materialId, guestId } = req.body;
+    let userId = null;
+    try {
+      const authHeader = req.headers['authorization'];
+      const token = authHeader && authHeader.split(' ')[1];
+      const secret = process.env.JWT_SECRET;
+      if (token && secret) {
+        const jwt = await import('jsonwebtoken');
+        const User = (await import('../models/User.js')).default;
+        const decoded = jwt.default.verify(token, secret);
+        const user = await User.findById(decoded.userId) || await User.findOne({ id: decoded.userId });
+        if (user) userId = user.id || user._id;
+      }
+    } catch (_) { /* optional auth - ignore */ }
+    const effectiveGuestId = guestId || null;
 
     if (!materialId) {
       return res.status(400).json({ error: "Material ID is required" });
+    }
+    if (!userId && !effectiveGuestId) {
+      return res.status(400).json({ error: "Provide guestId in request body for guest checkout" });
     }
 
     // Fetch the material
@@ -281,10 +360,12 @@ router.post("/create-order", authenticateToken, async (req, res) => {
       });
     }
 
-    // Check if user has already purchased this material
+    const purchaseQuery = userId
+      ? { userId, materialId }
+      : { guestId: effectiveGuestId, materialId };
+
     const existingPayment = await Payment.findOne({
-      userId,
-      materialId,
+      ...purchaseQuery,
       status: 'completed'
     });
 
@@ -295,10 +376,8 @@ router.post("/create-order", authenticateToken, async (req, res) => {
       });
     }
 
-    // Check if there's a pending payment
     const pendingPayment = await Payment.findOne({
-      userId,
-      materialId,
+      ...purchaseQuery,
       status: 'pending'
     });
 
@@ -312,14 +391,13 @@ router.post("/create-order", authenticateToken, async (req, res) => {
       });
     }
 
-    // Convert price from rupees to paise (Razorpay uses smallest currency unit)
-    // Ensure amount is a positive integer
-    const amountInPaise = Math.round(material.price * 100);
+    const price = Number(material.price) || 0;
+    const amountInPaise = Math.round(price * 100);
 
     if (amountInPaise <= 0 || !Number.isInteger(amountInPaise)) {
       return res.status(400).json({ 
         error: "Invalid material price",
-        details: `Price must be greater than 0. Received: ${material.price}, Converted: ${amountInPaise}`
+        details: `Price must be greater than 0. Received: ${price}, Converted: ${amountInPaise}`
       });
     }
 
@@ -331,22 +409,22 @@ router.post("/create-order", authenticateToken, async (req, res) => {
       });
     }
 
-    // Create Razorpay order
-    // Receipt must be max 40 characters - use short format
-    const shortMaterialId = materialId.toString().substring(0, 8);
-    const shortUserId = userId.toString().substring(0, 8);
-    const timestamp = Date.now().toString().slice(-8); // Last 8 digits
-    const receipt = `mat_${shortMaterialId}_${shortUserId}_${timestamp}`.substring(0, 40);
+    const shortMaterialId = (materialId ?? '').toString().substring(0, 8);
+    const shortId = (userId || effectiveGuestId || '').toString().substring(0, 8);
+    const timestamp = Date.now().toString().slice(-8);
+    const receipt = `mat_${shortMaterialId}_${shortId}_${timestamp}`.substring(0, 40);
     
+    const notes = {
+      materialId: (materialId ?? '').toString(),
+      materialTitle: (material.title || '').substring(0, 100),
+      ...(userId && { userId: String(userId) }),
+      ...(effectiveGuestId && { guestId: String(effectiveGuestId) }),
+    };
     const options = {
-      amount: amountInPaise, // Must be integer in paise
+      amount: amountInPaise,
       currency: "INR",
-      receipt: receipt,
-      notes: {
-        materialId: materialId.toString(),
-        materialTitle: material.title.substring(0, 100), // Limit note length
-        userId: userId.toString(),
-      },
+      receipt,
+      notes,
     };
 
     console.log('Creating Razorpay order:', {
@@ -385,39 +463,21 @@ router.post("/create-order", authenticateToken, async (req, res) => {
         receipt: order.receipt
       });
     } catch (razorpayError) {
-      console.error('❌ Razorpay order creation failed:', {
-        error: razorpayError.error,
-        description: razorpayError.error?.description,
-        code: razorpayError.error?.code,
-        field: razorpayError.error?.field,
-        httpStatusCode: razorpayError.statusCode,
-        requestOptions: {
-          amount: options.amount,
-          currency: options.currency,
-          receipt: options.receipt
-        }
-      });
-      
-      // Provide more detailed error message
-      let errorMessage = 'Failed to create payment order';
-      if (razorpayError.error?.description) {
-        errorMessage = razorpayError.error.description;
-      } else if (razorpayError.message) {
-        errorMessage = razorpayError.message;
-      }
-
-      return res.status(400).json({
-        error: errorMessage,
-        details: razorpayError.error?.description || razorpayError.message || 'Unknown error',
-        code: razorpayError.error?.code || 'ORDER_CREATION_FAILED',
-        field: razorpayError.error?.field || null
+      console.error('❌ Razorpay order creation failed:', razorpayError?.error || razorpayError);
+      const isAuth = razorpayError?.statusCode === 401 || razorpayError?.error?.code === 'BAD_REQUEST_ERROR';
+      const desc = razorpayError?.error?.description || razorpayError?.message || 'Unknown error';
+      return res.status(isAuth ? 500 : 400).json({
+        error: isAuth ? 'Razorpay authentication failed' : (razorpayError?.error?.description || 'Failed to create payment order'),
+        details: isAuth
+          ? 'Check RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in backend/.env'
+          : desc,
+        code: razorpayError?.error?.code || 'ORDER_CREATION_FAILED'
       });
     }
 
-    // Order is already validated in the try block above
-    // Save payment record
     const payment = await Payment.create({
-      userId,
+      userId: userId || undefined,
+      guestId: effectiveGuestId || undefined,
       materialId,
       razorpayOrderId: order.id,
       amount: amountInPaise,
@@ -504,8 +564,8 @@ router.post("/create-order", authenticateToken, async (req, res) => {
   }
 });
 
-// Verify payment and update payment status
-router.post("/verify-payment", authenticateToken, async (req, res) => {
+// Verify payment and update payment status (works for both logged-in and guest)
+router.post("/verify-payment", authenticateOptional, async (req, res) => {
   try {
     if (!razorpayInstance) {
       return res.status(503).json({ 
@@ -514,7 +574,6 @@ router.post("/verify-payment", authenticateToken, async (req, res) => {
     }
 
     const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
-    const userId = req.user.id;
 
     if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
       return res.status(400).json({ 
@@ -522,11 +581,7 @@ router.post("/verify-payment", authenticateToken, async (req, res) => {
       });
     }
 
-    // Find the payment record
-    const payment = await Payment.findOne({
-      razorpayOrderId,
-      userId
-    });
+    const payment = await Payment.findOne({ razorpayOrderId });
 
     if (!payment) {
       return res.status(404).json({ error: "Payment record not found" });
@@ -593,22 +648,18 @@ router.post("/verify-payment", authenticateToken, async (req, res) => {
         }
       );
 
-      // Generate secure download token for paid materials
-      if (updatedPayment) {
+      if (updatedPayment && updatedPayment.userId) {
         const material = await Material.findById(updatedPayment.materialId);
         if (material && material.accessType === 'paid') {
           try {
-            const downloadToken = await DownloadToken.create({
+            await DownloadToken.create({
               userId: updatedPayment.userId,
               materialId: updatedPayment.materialId,
               paymentId: updatedPayment.id,
-              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
             });
-
-            console.log(`✅ Secure download token generated for material ${updatedPayment.materialId}`);
           } catch (tokenError) {
             console.error("⚠️ Failed to generate download token:", tokenError);
-            // Don't fail the payment verification if token generation fails
           }
         }
       }
@@ -634,14 +685,43 @@ router.post("/verify-payment", authenticateToken, async (req, res) => {
   }
 });
 
-// Check if user has purchased a material
-router.get("/check-purchase/:materialId", authenticateToken, async (req, res) => {
+// Check if user or guest has purchased a material (NO auth required - public endpoint)
+router.get("/check-purchase/:materialId", async (req, res) => {
   try {
     const { materialId } = req.params;
-    const userId = req.user.id;
+    const guestId = req.query.guestId;
+
+    let userId = null;
+    try {
+      const authHeader = req.headers['authorization'];
+      const token = authHeader && authHeader.split(' ')[1];
+      const secret = process.env.JWT_SECRET;
+      if (token && secret) {
+        const jwt = await import('jsonwebtoken');
+        const User = (await import('../models/User.js')).default;
+        const decoded = jwt.default.verify(token, secret);
+        const user = await User.findById(decoded.userId) || await User.findOne({ id: decoded.userId });
+        if (user) userId = user.id || user._id;
+      }
+    } catch (_) { /* optional - ignore */ }
+
+    if (userId) {
+      const payment = await Payment.findOne({
+        userId,
+        materialId,
+        status: 'completed'
+      });
+      return res.status(200).json({
+        hasPurchased: !!payment,
+        payment: payment ? payment.toJSON() : null
+      });
+    }
+    if (!guestId) {
+      return res.status(200).json({ hasPurchased: false, payment: null });
+    }
 
     const payment = await Payment.findOne({
-      userId,
+      guestId,
       materialId,
       status: 'completed'
     });
@@ -766,20 +846,20 @@ router.post("/webhook", express.raw({ type: 'application/json' }), async (req, r
               }
             );
 
-            // Generate secure download token
-            const material = await Material.findById(payment.materialId);
-            if (material && material.accessType === 'paid') {
-              const downloadToken = await DownloadToken.create({
-                userId: payment.userId,
-                materialId: payment.materialId,
-                paymentId: payment.id,
-                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
-              });
-
-              console.log(`✅ Secure download token generated for material ${payment.materialId}, user ${payment.userId}`);
+            if (payment.userId) {
+              const material = await Material.findById(payment.materialId);
+              if (material && material.accessType === 'paid') {
+                try {
+                  await DownloadToken.create({
+                    userId: payment.userId,
+                    materialId: payment.materialId,
+                    paymentId: payment.id,
+                    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+                  });
+                } catch (e) { /* ignore */ }
+              }
             }
-
-            console.log(`✅ Payment verified and completed via payment link - Link: ${paymentLinkId}`);
+            console.log(`✅ Payment verified via payment link - Link: ${paymentLinkId}`);
           }
         }
       } catch (razorpayError) {
@@ -825,17 +905,18 @@ router.post("/webhook", express.raw({ type: 'application/json' }), async (req, r
             }
           );
 
-          // Generate secure download token
-          const material = await Material.findById(payment.materialId);
-          if (material && material.accessType === 'paid') {
-            const downloadToken = await DownloadToken.create({
-              userId: payment.userId,
-              materialId: payment.materialId,
-              paymentId: payment.id,
-              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
-            });
-
-            console.log(`✅ Secure download token generated for material ${payment.materialId}, user ${payment.userId}`);
+          if (payment.userId) {
+            const material = await Material.findById(payment.materialId);
+            if (material && material.accessType === 'paid') {
+              try {
+                await DownloadToken.create({
+                  userId: payment.userId,
+                  materialId: payment.materialId,
+                  paymentId: payment.id,
+                  expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+                });
+              } catch (e) { /* ignore */ }
+            }
           }
 
           console.log(`✅ Payment verified and completed via webhook - Order: ${orderId}`);

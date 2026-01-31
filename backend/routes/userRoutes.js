@@ -186,7 +186,7 @@ const otpLimiter = rateLimit({
 });
 
 router.post("/register", authLimiter, validate(userRegistrationSchema), async (req, res) => {
-  const { name, email, password, college, studentId, branch, semester, userType, phone } = req.body;
+  const { name, email, password, college, studentId, branch, semester, phone } = req.body;
   try {
     // OTP verification removed - direct registration with email only
     
@@ -214,7 +214,7 @@ router.post("/register", authLimiter, validate(userRegistrationSchema), async (r
       studentId,
       branch,
       semester: semester || null,
-      userType: userType || 'student',
+      userType: 'student',
       phone: phone || ''
     });
     

@@ -177,6 +177,21 @@ const UserNotifications: React.FC<UserNotificationsProps> = ({
 
   const fetchNotices = async () => {
     try {
+      const token = authService.getToken();
+      const isGuest = !token || !userId || userId === 'guest' || userId === 'default';
+
+      // For guest/unauthenticated users, fall back to public notices
+      if (isGuest) {
+        const response = await fetch('/api/notices/public');
+        if (response.ok) {
+          const data = await response.json();
+          setNotices(Array.isArray(data) ? data : []);
+        } else {
+          setNotices([]);
+        }
+        return;
+      }
+
       const response = await fetch(`/api/notices/user/${userId}`, {
         headers: authService.getAuthHeaders()
       });

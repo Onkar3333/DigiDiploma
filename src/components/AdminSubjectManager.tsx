@@ -161,10 +161,12 @@ const AdminSubjectManager: React.FC = () => {
       return;
     }
 
-    if (password !== '8956446484') {
+    // Use env in production; fallback only for local dev (do not commit real password)
+    const expectedPassword = import.meta.env.VITE_ADMIN_DELETE_SUBJECTS_PASSWORD ?? '';
+    if (!expectedPassword || password !== expectedPassword) {
       toast({
         title: "Access Denied",
-        description: "Incorrect password. Deletion cancelled.",
+        description: expectedPassword ? "Incorrect password. Deletion cancelled." : "Delete password not configured. Set VITE_ADMIN_DELETE_SUBJECTS_PASSWORD.",
         variant: "destructive",
       });
       return;
@@ -261,10 +263,11 @@ const AdminSubjectManager: React.FC = () => {
       return;
     }
 
-    if (password !== '8956446484') {
+    const expectedPasswordBranch = import.meta.env.VITE_ADMIN_DELETE_SUBJECTS_PASSWORD ?? '';
+    if (!expectedPasswordBranch || password !== expectedPasswordBranch) {
       toast({
         title: "Access Denied",
-        description: "Incorrect password. Deletion cancelled.",
+        description: expectedPasswordBranch ? "Incorrect password. Deletion cancelled." : "Delete password not configured. Set VITE_ADMIN_DELETE_SUBJECTS_PASSWORD.",
         variant: "destructive",
       });
       return;

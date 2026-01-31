@@ -31,7 +31,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
   const [forgotValue, setForgotValue] = useState("");
   const [forgotMsg, setForgotMsg] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
-  
+
   // OTP verification removed - no longer needed
 
   React.useEffect(() => {
@@ -69,20 +69,20 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
       setError("Please enter your email or enrollment number");
       return;
     }
-    
+
     setForgotLoading(true);
     setError("");
     setForgotMsg("");
-    
+
     try {
       const res = await fetch('/api/users/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ emailOrStudentId: forgotValue })
       });
-      
+
       const data = await res.json();
-      
+
       if (res.ok) {
         setForgotMsg(data.message || "If this account exists, a password reset link will be sent to your email. Please check your inbox.");
         setForgotValue("");
@@ -114,9 +114,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
           setLoading(false);
           return;
         }
-        
+
         // OTP verification removed - direct registration
-        
+
         const result = await onCreate({
           name: form.name,
           email: form.email,
@@ -126,7 +126,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
           phone: form.phone,
           password: form.password,
         });
-        
+
         // Handle result from onCreate
         if (result) {
           if (typeof result === 'object' && 'success' in result) {
@@ -135,7 +135,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
               // Reset form after a short delay
               setTimeout(() => {
                 setIsRegister(false);
-                setForm({ 
+                setForm({
                   name: "",
                   email: "",
                   studentId: "",
@@ -159,10 +159,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
           }
         } else {
           // If no result returned, assume success (backward compatibility)
-        setSuccess("Registration successful! You can now login.");
+          setSuccess("Registration successful! You can now login.");
           setTimeout(() => {
-        setIsRegister(false);
-        setForm({ ...form, password: "" });
+            setIsRegister(false);
+            setForm({ ...form, password: "" });
           }, 2000);
         }
       } else {
@@ -171,12 +171,12 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
           setLoading(false);
           return;
         }
-        
+
         const result = await onLogin({
           emailOrStudentId: form.emailOrStudentId,
           password: form.password,
         });
-        
+
         // Handle result from onLogin
         if (result) {
           if (typeof result === 'object' && 'success' in result) {
@@ -185,7 +185,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
               // Form will close automatically on successful login
             } else {
               setError(result.error || "Invalid credentials. Please check your email/enrollment number and password.");
-      }
+            }
           } else if (result === true) {
             // Backward compatibility
             setSuccess("Login successful! Redirecting...");
@@ -301,15 +301,15 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
                 required
               />
               <div>
-              <input
-                type="email"
-                name="email"
-                placeholder="Email"
-                value={form.email}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                required
-              />
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="Email"
+                  value={form.email}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  required
+                />
                 {/* OTP verification UI removed - direct registration enabled */}
               </div>
               <div>
@@ -353,15 +353,15 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
                 ))}
               </select>
               <div className="relative">
-              <input
+                <input
                   type={showPassword ? "text" : "password"}
-                name="password"
-                placeholder="Password"
-                value={form.password}
-                onChange={handleChange}
+                  name="password"
+                  placeholder="Password"
+                  value={form.password}
+                  onChange={handleChange}
                   className="w-full px-4 py-2 pr-10 border rounded focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                required
-              />
+                  required
+                />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
@@ -383,15 +383,15 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onCreate, onClose }) => 
                 required
               />
               <div className="relative">
-              <input
+                <input
                   type={showPassword ? "text" : "password"}
-                name="password"
-                placeholder="Password"
-                value={form.password}
-                onChange={handleChange}
+                  name="password"
+                  placeholder="Password"
+                  value={form.password}
+                  onChange={handleChange}
                   className="w-full px-4 py-2 pr-10 border rounded focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                required
-              />
+                  required
+                />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}

@@ -118,14 +118,19 @@ const SubjectMaterials: React.FC<SubjectMaterialsProps> = ({
         price: m.price || 0
       })));
       
-      // Check purchase status for paid materials
       const paidMaterials = materialsList.filter((m: Material) => m.accessType === 'paid');
       if (paidMaterials.length > 0) {
         const authService = (await import('@/lib/auth')).authService;
+        const { getOrCreateGuestId } = await import('@/lib/guestId');
+        const token = authService.getToken();
+        const guestId = !token ? getOrCreateGuestId() : undefined;
         const purchaseChecks = await Promise.all(
           paidMaterials.map(async (material: Material) => {
             try {
-              const checkResponse = await fetch(`/api/payments/check-purchase/${material._id}`, {
+              const url = guestId
+                ? `/api/payments/check-purchase/${material._id}?guestId=${encodeURIComponent(guestId)}`
+                : `/api/payments/check-purchase/${material._id}`;
+              const checkResponse = await fetch(url, {
                 headers: authService.getAuthHeaders()
               });
               if (checkResponse.ok) {
@@ -193,15 +198,16 @@ const SubjectMaterials: React.FC<SubjectMaterialsProps> = ({
     setProcessingPayment(material._id);
     try {
       const authService = (await import('@/lib/auth')).authService;
-      
-      // Create payment order
+      const { getOrCreateGuestId } = await import('@/lib/guestId');
+      const token = authService.getToken();
+      const guestId = !token ? getOrCreateGuestId() : undefined;
       const orderResponse = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...authService.getAuthHeaders()
         },
-        body: JSON.stringify({ materialId: material._id })
+        body: JSON.stringify({ materialId: material._id, ...(guestId && { guestId }) })
       });
 
       if (!orderResponse.ok) {

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { GraduationCap, MapPin, Trophy, Users, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { GraduationCap, MapPin, Trophy, Users, ShieldCheck, CheckCircle2, ArrowRight, ArrowDown } from "lucide-react";
 
 const perks = [
   {
@@ -103,8 +103,22 @@ const Internship = () => {
           ))}
         </section>
 
-        <section id="internship-form" className="grid gap-8 lg:grid-cols-2 items-start">
-          <div className="space-y-4">
+        <section id="internship-form" className="relative">
+          {/* Animated arrow indicator pointing to form */}
+          <div className="absolute -top-12 left-0 right-0 flex justify-center lg:justify-start lg:left-0 z-10">
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-[#673ab7] to-[#ec4899] text-white px-5 py-3 rounded-full shadow-lg animate-pulse">
+              <span className="font-semibold text-sm sm:text-base">Fill this internship form</span>
+              <ArrowDown className="w-4 h-4 animate-bounce lg:hidden" />
+              <ArrowRight className="w-4 h-4 animate-bounce hidden lg:inline" />
+            </div>
+          </div>
+
+          <div className="grid gap-8 lg:grid-cols-2 items-start pt-8">
+            {/* Form on the LEFT */}
+            <InternshipForm variant={variant} className="w-full" />
+
+          {/* Helper text on the RIGHT */}
+          <div className="space-y-4 lg:pt-2">
             <Badge variant="secondary" className="text-indigo-600">
               Step 1
             </Badge>
@@ -113,7 +127,7 @@ const Internship = () => {
               The form takes less than 3 minutes. Share your preferred mode, duration, and upload your resume. Our team validates every
               application manually, so please double-check your email and phone number.
             </p>
-            <div className="grid gap-4">
+            <div className="grid gap-4 text-left max-w-md">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-semibold">1</div>
                 <span>Fill contact & academic details</span>
@@ -128,7 +142,7 @@ const Internship = () => {
               </div>
             </div>
           </div>
-          <InternshipForm variant={variant} />
+          </div>
         </section>
 
         <section className="bg-white rounded-3xl border shadow-inner p-8">

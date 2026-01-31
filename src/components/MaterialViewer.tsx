@@ -70,12 +70,16 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
     setCurrentRatingCount(material.ratingCount);
   }, [material.downloads, material.rating, material.ratingCount]);
 
-  // Check purchase status for paid materials
   useEffect(() => {
     if (material.accessType === 'paid') {
       const checkPurchase = async () => {
         try {
-          const checkResponse = await fetch(`/api/payments/check-purchase/${material.id}`, {
+          const token = authService.getToken();
+          const guestId = !token ? (await import('@/lib/guestId')).getOrCreateGuestId() : undefined;
+          const url = guestId
+            ? `/api/payments/check-purchase/${material.id}?guestId=${encodeURIComponent(guestId)}`
+            : `/api/payments/check-purchase/${material.id}`;
+          const checkResponse = await fetch(url, {
             headers: authService.getAuthHeaders()
           });
           
@@ -423,11 +427,18 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
       }
     }
     
-    // Free materials can be viewed normally
+    // Free materials can be viewed normally. Paid: view-only with copy protection.
     const absoluteUrl = getAbsoluteUrl(material.url);
+    const isPaidViewOnly = material.accessType === 'paid';
+    const viewerWrapperProps = isPaidViewOnly ? {
+      className: 'select-none',
+      onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+      style: { userSelect: 'none' as const }
+    } : {};
     
     if (material.type.toLowerCase() === 'pdf') {
       return (
+        <div {...viewerWrapperProps}>
         <PDFViewer
           url={absoluteUrl}
           title={material.title}
@@ -439,9 +450,11 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
           onBookmarkToggle={handleBookmarkToggle}
           initialBookmarked={bookmarked}
         />
+        </div>
       );
     } else if (material.type.toLowerCase() === 'video') {
       return (
+        <div {...viewerWrapperProps}>
         <VideoPlayer
           url={absoluteUrl}
           title={material.title}
@@ -454,6 +467,7 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
           onBookmarkToggle={handleBookmarkToggle}
           initialBookmarked={bookmarked}
         />
+        </div>
       );
     } else {
       return (
@@ -463,10 +477,12 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
               <div className="text-6xl mb-4">📄</div>
               <p className="text-lg font-semibold mb-2">Unsupported File Type</p>
               <p className="text-gray-600 mb-4">This file type cannot be previewed.</p>
-              <Button onClick={downloadMaterial} disabled={isDownloadRecording}>
-                <Download className="h-4 w-4 mr-2" />
-                Download File
-              </Button>
+              {material.accessType !== 'paid' && (
+                <Button onClick={downloadMaterial} disabled={isDownloadRecording}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download File
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -497,10 +513,18 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
             </div>
             
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={downloadMaterial} disabled={isDownloadRecording}>
-                <Download className="h-4 w-4 mr-2" />
-                Download
-              </Button>
+              {/* Paid materials: view-only, no download button */}
+              {material.accessType !== 'paid' && (
+                <Button variant="outline" size="sm" onClick={downloadMaterial} disabled={isDownloadRecording}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </Button>
+              )}
+              {material.accessType === 'paid' && (
+                <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                  View only — no downloads
+                </span>
+              )}
             </div>
           </div>
           

@@ -90,7 +90,10 @@ router.get("/", authenticateToken, async (req, res) => {
 });
 
 // Get all materials for a subject (by subjectId or subjectCode)
-router.get("/subject/:subjectId", authenticateToken, async (req, res) => {
+// NOTE: This endpoint is now public read-only so unauthenticated
+// students can browse available materials. Paid/download actions
+// remain protected elsewhere.
+router.get("/subject/:subjectId", async (req, res) => {
   try {
     const { subjectId } = req.params;
     const { type } = req.query;

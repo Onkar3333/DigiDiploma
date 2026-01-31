@@ -30,6 +30,8 @@ import Profile from "./pages/Profile";
 import StudentNotices from "./pages/StudentNotices";
 import Courses from "./pages/Courses";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminLogin from "@/pages/AdminLogin";
+import Login from "@/pages/Login";
 
 const queryClient = new QueryClient();
 
@@ -74,21 +76,26 @@ const App = () => {
               <Routes>
             <Route path="/" element={<Index />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            {/* Student login (for purchasing paid materials) */}
+            <Route path="/login" element={<Login />} />
+            {/* Admin login route (public) */}
+            <Route path="/admin-login" element={<AdminLogin />} />
+            {/* Admin routes (protected) */}
             <Route 
               path="/admin" 
               element={
-                <ProtectedRoute requiredUserType="admin">
+                <ProtectedRoute requiredUserType="admin" fallbackPath="/admin-login">
                   <AdminDashboard />
                 </ProtectedRoute>
-              } 
+              }
             />
             <Route 
               path="/admin-dashboard" 
               element={
-                <ProtectedRoute requiredUserType="admin">
+                <ProtectedRoute requiredUserType="admin" fallbackPath="/admin-login">
                   <AdminDashboard />
                 </ProtectedRoute>
-              } 
+              }
             />
             <Route 
               path="/student-dashboard" 
@@ -97,6 +104,11 @@ const App = () => {
                   <StudentDashboard />
                 </ProtectedRoute>
               } 
+            />
+            {/* Public dashboard access without auth (guest student) */}
+            <Route 
+              path="/open-dashboard"
+              element={<StudentDashboard />}
             />
             <Route 
               path="/notices" 

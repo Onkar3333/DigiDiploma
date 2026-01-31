@@ -149,9 +149,15 @@ app.use(async (req, res, next) => {
       '/api/users/register',
       '/api/users/refresh',
       '/api/notices/public',
-      '/api/dashboard/public-stats'
+      '/api/dashboard/public-stats',
+      '/api/payments/check-purchase',
+      '/api/payments/create-order',
+      '/api/payments/create-payment-link',
+      '/api/payments/verify-payment',
+      '/api/payments/razorpay-available'
     ];
-    if (allowedPaths.includes(req.path) || req.path.startsWith('/uploads/')) return next();
+    const pathAllowed = allowedPaths.some(p => req.path === p || req.path.startsWith(p + '/'));
+    if (pathAllowed || req.path.startsWith('/uploads/')) return next();
     try {
       const authHeader = req.headers['authorization'];
       const token = authHeader && authHeader.split(' ')[1];
@@ -278,6 +284,39 @@ import notificationRoutes from './routes/notificationRoutes.js';
 app.use('/api/notifications', notificationRoutes);
 
 import paymentRoutes from './routes/paymentRoutes.js';
+
+// Public payment routes - mount FIRST so they bypass any router-level auth
+import Payment from './models/Payment.js';
+app.get('/api/payments/check-purchase/:materialId', async (req, res) => {
+  try {
+    const { materialId } = req.params;
+    const guestId = req.query.guestId;
+    let userId = null;
+    try {
+      const authHeader = req.headers['authorization'];
+      const token = authHeader && authHeader.split(' ')[1];
+      const secret = process.env.JWT_SECRET;
+      if (token && secret) {
+        const jwt = (await import('jsonwebtoken')).default;
+        const User = (await import('./models/User.js')).default;
+        const decoded = jwt.verify(token, secret);
+        const user = await User.findById(decoded.userId) || await User.findOne({ id: decoded.userId });
+        if (user) userId = user.id || user._id;
+      }
+    } catch (_) { /* optional */ }
+    if (userId) {
+      const payment = await Payment.findOne({ userId, materialId, status: 'completed' });
+      return res.status(200).json({ hasPurchased: !!payment, payment: payment ? payment.toJSON() : null });
+    }
+    if (!guestId) return res.status(200).json({ hasPurchased: false, payment: null });
+    const payment = await Payment.findOne({ guestId, materialId, status: 'completed' });
+    res.status(200).json({ hasPurchased: !!payment, payment: payment ? payment.toJSON() : null });
+  } catch (e) {
+    console.error('check-purchase error:', e);
+    res.status(500).json({ error: 'Failed to check purchase' });
+  }
+});
+
 app.use('/api/payments', paymentRoutes);
 
 import analyticsRoutes from './routes/analyticsRoutes.js';

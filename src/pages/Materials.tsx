@@ -29,7 +29,7 @@ import {
   Star,
   CheckCircle
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authService } from '@/lib/auth';
 import SubjectMaterials from '@/components/SubjectMaterials';
 import MaterialViewer from '@/components/MaterialViewer';
@@ -38,9 +38,14 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { ALL_BRANCHES } from '@/constants/branches';
 import { initializePayment, RazorpayResponse } from '@/lib/razorpay';
 import { normalizeBackendUrl } from '@/lib/urlUtils';
-import { IndianRupee, Lock, QrCode, CreditCard } from 'lucide-react';
+import { getOrCreateGuestId } from '@/lib/guestId';
+import { IndianRupee, Lock, QrCode, CreditCard, Share2, Info } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 
 const AVAILABLE_BRANCHES = [...ALL_BRANCHES];
+
+/** Use for verbose logs; no-op in production build */
+const devLog = import.meta.env.DEV ? (...args: unknown[]) => console.log(...args) : () => {};
 
 interface Subject {
   _id: string;
@@ -76,8 +81,9 @@ interface Material {
 }
 
 const Materials = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   
   const [selectedBranch, setSelectedBranch] = useState<string>('');
@@ -140,16 +146,25 @@ const Materials = () => {
     }
   });
 
+  // Note: we no longer auto-select branch from the logged-in user.
+  // This avoids cases where a user with a non-configured branch
+  // (e.g. "Administration") gets stuck with "No subjects available".
+
+  // Apply share-link URL params: set branch on mount; set semester/subject when subjects load
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/?login=1');
-      return;
+    const branch = searchParams.get('branch');
+    if (branch) setSelectedBranch(branch);
+  }, [searchParams]);
+  useEffect(() => {
+    const semester = searchParams.get('semester');
+    const subjectCode = searchParams.get('subject');
+    if (subjects.length === 0) return;
+    if (semester) setSelectedSemester(parseInt(semester, 10));
+    if (subjectCode) {
+      const sub = subjects.find(s => s.code === subjectCode || s._id === subjectCode);
+      if (sub) setSelectedSubject(sub);
     }
-    // Auto-select user's branch if available and no branch is selected
-    if (user?.branch && !selectedBranch) {
-      setSelectedBranch(user.branch);
-    }
-  }, [isAuthenticated, user]);
+  }, [subjects, searchParams]);
 
   useEffect(() => {
     // Fetch subjects when branch is selected
@@ -173,52 +188,14 @@ const Materials = () => {
     if (!selectedBranch) return;
     setLoading(true);
     try {
-      const token = authService.getToken();
-      if (!token) {
-        console.error('❌ No authentication token found');
-        toast({ 
-          title: "Authentication required", 
-          description: "Please log in to view subjects.",
-          variant: "destructive" 
-        });
-        navigate('/?login=1');
-        return;
-      }
-
-      const response = await fetch(`/api/subjects/branch/${encodeURIComponent(selectedBranch)}`, {
-        headers: {
-          ...authService.getAuthHeaders(),
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await fetch(`/api/subjects/branch/${encodeURIComponent(selectedBranch)}`);
       
       if (response.status === 401) {
         // Token expired or invalid - try to refresh
         console.log('🔄 Token expired, attempting refresh...');
-        const refreshed = await authService.refreshToken();
-        if (refreshed) {
-          // Retry the request with new token
-          const retryResponse = await fetch(`/api/subjects/branch/${encodeURIComponent(selectedBranch)}`, {
-            headers: {
-              ...authService.getAuthHeaders(),
-              'Content-Type': 'application/json'
-            }
-          });
-          if (retryResponse.ok) {
-            const retryData = await retryResponse.json();
-            processSubjectsData(retryData);
-            return;
-          }
-        }
-        // Refresh failed - redirect to login
-        console.error('❌ Authentication failed, redirecting to login');
-        toast({ 
-          title: "Session expired", 
-          description: "Please log in again.",
-          variant: "destructive" 
-        });
-        authService.logout();
-        navigate('/?login=1');
+        // For unauthenticated users, just treat as no subjects
+        console.warn('❌ Unauthorized when fetching subjects; returning empty list');
+        setSubjects([]);
         return;
       }
       
@@ -244,15 +221,15 @@ const Materials = () => {
   };
 
   const processSubjectsData = (data: any) => {
-    console.log('📚 Raw API response for branch:', selectedBranch, data);
-    console.log('📚 Response type:', typeof data, 'Keys:', Object.keys(data));
+    devLog('📚 Raw API response for branch:', selectedBranch, data);
+    devLog('📚 Response type:', typeof data, 'Keys:', Object.keys(data));
     
     const allSubjects: Subject[] = [];
     // Data comes grouped by semester: { "1": [...], "2": [...] }
     // Handle both object format and array format
     if (Array.isArray(data)) {
       // If API returns array directly, process it
-      console.log('📚 API returned array format, processing', data.length, 'subjects');
+      devLog('📚 API returned array format, processing', data.length, 'subjects');
       data.forEach((subject: any) => {
         allSubjects.push({
           _id: subject._id || subject.id || '',
@@ -268,7 +245,7 @@ const Materials = () => {
     } else if (typeof data === 'object' && data !== null) {
       // Process grouped by semester format
       Object.entries(data).forEach(([semester, semesterSubjects]: [string, any]) => {
-        console.log(`📖 Processing semester ${semester}:`, Array.isArray(semesterSubjects) ? semesterSubjects.length : 'not an array');
+        devLog(`📖 Processing semester ${semester}:`, Array.isArray(semesterSubjects) ? semesterSubjects.length : 'not an array');
         if (Array.isArray(semesterSubjects)) {
           // Ensure each subject has all required fields
           semesterSubjects.forEach((subject: any) => {
@@ -302,8 +279,8 @@ const Materials = () => {
     });
     
     const semestersFound = [...new Set(allSubjects.map(s => s.semester))].sort();
-    console.log(`✅ Loaded ${allSubjects.length} subjects for ${selectedBranch} across ${semestersFound.length} semesters:`, semestersFound);
-    console.log('📊 Subjects per semester:', semestersFound.map(sem => ({
+    devLog(`✅ Loaded ${allSubjects.length} subjects for ${selectedBranch} across ${semestersFound.length} semesters:`, semestersFound);
+    devLog('📊 Subjects per semester:', semestersFound.map(sem => ({
       semester: sem,
       count: allSubjects.filter(s => s.semester === sem).length
     })));
@@ -315,85 +292,21 @@ const Materials = () => {
     if (!selectedSubject) return;
     setLoading(true);
     try {
-      const token = authService.getToken();
-      if (!token) {
-        console.error('❌ No authentication token found');
-        navigate('/?login=1');
-        return;
-      }
-
       // Fetch materials by subject code (as uploaded by admin)
-      const response = await fetch(`/api/materials/subject/${encodeURIComponent(selectedSubject.code)}`, {
-        headers: {
-          ...authService.getAuthHeaders(),
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await fetch(`/api/materials/subject/${encodeURIComponent(selectedSubject.code)}`);
       
       if (response.status === 401) {
         // Token expired - try to refresh
-        const refreshed = await authService.refreshToken();
-        if (refreshed) {
-          // Retry with new token
-          const retryResponse = await fetch(`/api/materials/subject/${encodeURIComponent(selectedSubject.code)}`, {
-            headers: {
-              ...authService.getAuthHeaders(),
-              'Content-Type': 'application/json'
-            }
-          });
-          if (retryResponse.ok) {
-            const retryData = await retryResponse.json();
-            const materialsList = Array.isArray(retryData) ? retryData : [];
-            const normalizedList = materialsList.map((m: Material) => {
-              // Preserve actual resourceType if it exists, only default to 'notes' if it's missing
-              const resourceType = m.resourceType && m.resourceType.trim() !== '' ? m.resourceType : 'notes';
-              
-              // Validate and sanitize URL - prevent invalid data URLs
-              let validUrl = m.url || '';
-              if (validUrl === 'data:;base64,=' || validUrl.startsWith('data:;base64,=') || validUrl.trim() === '') {
-                if (m.accessType === 'drive_protected' && m.googleDriveUrl) {
-                  validUrl = m.googleDriveUrl;
-                } else {
-                  validUrl = '';
-                }
-              }
-              
-              return {
-                ...m,
-                // Normalize backend URLs so localhost/dev URLs become valid relative URLs in production
-                url: normalizeBackendUrl(validUrl),
-                downloads: m.downloads ?? 0,
-                rating: m.rating ?? 0,
-                ratingCount: m.ratingCount ?? 0,
-                resourceType: resourceType,
-                accessType: m.accessType || 'free',
-                price: m.price || 0,
-                googleDriveUrl: m.googleDriveUrl || undefined
-              };
-            });
-            const filteredMaterials = normalizedList.filter((m: Material) => {
-              const matchesSubject = m.subjectCode === selectedSubject.code;
-              const matchesBranch = !m.branch || m.branch === selectedBranch;
-              // Handle semester comparison (can be string or number)
-              const materialSemester = typeof m.semester === 'string' ? parseInt(m.semester) : m.semester;
-              const matchesSemester = !selectedSemester || !materialSemester || materialSemester === selectedSemester;
-              return matchesSubject && matchesBranch && matchesSemester;
-            });
-            setMaterials(filteredMaterials);
-            return;
-          }
-        }
-        // Refresh failed - redirect to login
-        authService.logout();
-        navigate('/?login=1');
+        console.warn('❌ Unauthorized when fetching materials; returning empty list');
+        setMaterials([]);
         return;
       }
       
       if (response.ok) {
         const data = await response.json();
         const materialsList = Array.isArray(data) ? data : [];
-        console.log(`📦 Fetched ${materialsList.length} materials for subject ${selectedSubject.code}`);
-        console.log('📦 Sample materials:', materialsList.slice(0, 3).map(m => ({
+        devLog(`📦 Fetched ${materialsList.length} materials for subject ${selectedSubject.code}`);
+        devLog('📦 Sample materials:', materialsList.slice(0, 3).map(m => ({
           title: m.title,
           subjectCode: m.subjectCode,
           branch: m.branch,
@@ -404,8 +317,8 @@ const Materials = () => {
         const normalizedMaterials = materialsList.map((m: Material) => {
           // Preserve actual resourceType if it exists, only default to 'notes' if it's missing
           const resourceType = m.resourceType && m.resourceType.trim() !== '' ? m.resourceType : 'notes';
-          console.log(`📋 Material "${m.title}" - resourceType: "${m.resourceType}" → normalized to: "${resourceType}"`);
-          console.log(`💰 Material "${m.title}" - accessType: "${m.accessType}", price: ${m.price}`);
+          devLog(`📋 Material "${m.title}" - resourceType: "${m.resourceType}" → normalized to: "${resourceType}"`);
+          devLog(`💰 Material "${m.title}" - accessType: "${m.accessType}", price: ${m.price}`);
           
           // Validate and sanitize URL - prevent invalid data URLs
           let validUrl = m.url || '';
@@ -442,7 +355,7 @@ const Materials = () => {
           const matchesSemester = !selectedSemester || !materialSemester || materialSemester === selectedSemester;
           const matches = matchesSubject && matchesBranch && matchesSemester;
           if (!matches && matchesSubject) {
-            console.log(`⚠️ Material "${m.title}" filtered out:`, {
+            devLog(`⚠️ Material "${m.title}" filtered out:`, {
               subjectMatch: matchesSubject,
               branchMatch: matchesBranch,
               semesterMatch: matchesSemester,
@@ -454,7 +367,7 @@ const Materials = () => {
           }
           return matches;
         });
-        console.log(`✅ Displaying ${filteredMaterials.length} filtered materials`);
+        devLog(`✅ Displaying ${filteredMaterials.length} filtered materials`);
         setMaterials(filteredMaterials);
     } else {
         throw new Error('Failed to fetch materials');
@@ -483,34 +396,15 @@ const Materials = () => {
       return;
     }
 
-    // Check payment configuration by calling a lightweight endpoint
-    // We'll detect 503 status which means payment is not configured
+    // Check payment configuration via public endpoint (no auth required)
     const checkPaymentConfig = async () => {
       try {
-        // Use a simple check endpoint or just try to create an order with invalid material
-        // The 503 will tell us if Razorpay is configured
-        const testResponse = await fetch('/api/payments/create-order', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...authService.getAuthHeaders()
-          },
-          body: JSON.stringify({ materialId: 'config-check-only' })
-        });
-        
-        // 503 means payment not configured
-        // 400/404 might mean it's configured but material doesn't exist (which is fine)
-        if (testResponse.status === 503) {
-          setPaymentConfigured(false);
-          console.warn('⚠️ Payment service not configured (503 response)');
-        } else {
-          // Any other status (400, 404, etc.) means the service is configured
-          // but the test material doesn't exist, which is expected
-          setPaymentConfigured(true);
-          console.log('✅ Payment service is configured');
-        }
+        const res = await fetch('/api/payments/razorpay-available');
+        const data = await res.json().catch(() => ({}));
+        setPaymentConfigured(!!data.configured);
+        if (data.configured) devLog('✅ Razorpay is configured for paid materials');
+        else console.warn('⚠️ Payment gateway not configured');
       } catch (error) {
-        // Network error or other issue - assume not configured to be safe
         console.warn('⚠️ Could not check payment configuration:', error);
         setPaymentConfigured(false);
       }
@@ -521,7 +415,7 @@ const Materials = () => {
     return () => clearTimeout(timeoutId);
   }, [materials, paymentConfigured]);
 
-  // Check purchase status for paid materials when materials are loaded
+  // Check purchase status for paid materials (supports both logged-in and guest)
   useEffect(() => {
     const checkPurchases = async () => {
       const paidMaterials = materials.filter(m => m.accessType === 'paid');
@@ -558,7 +452,7 @@ const Materials = () => {
       }
     });
     const result = Array.from(semesters).sort((a, b) => a - b);
-    console.log('📅 Available semesters:', result, 'from', subjects.length, 'subjects');
+    devLog('📅 Available semesters:', result, 'from', subjects.length, 'subjects');
     return result;
   };
 
@@ -568,7 +462,7 @@ const Materials = () => {
       (s.isActive === undefined || s.isActive === true) &&
       s.branch === selectedBranch
     ).sort((a, b) => a.name.localeCompare(b.name));
-    console.log(`📚 Semester ${semester} subjects:`, filtered.length, filtered.map(s => s.name));
+    devLog(`📚 Semester ${semester} subjects:`, filtered.length, filtered.map(s => s.name));
     return filtered;
   };
 
@@ -577,11 +471,15 @@ const Materials = () => {
     setViewingMaterial(prev => (prev && prev._id === materialId) ? { ...prev, ...stats } : prev);
   };
 
-  // Check if user has purchased a material
   const checkPurchaseStatus = async (materialId: string) => {
     try {
-      const response = await fetch(`/api/payments/check-purchase/${materialId}`, {
-        headers: authService.getAuthHeaders()
+      const token = authService.getToken();
+      const guestId = !token ? getOrCreateGuestId() : undefined;
+      const url = guestId
+        ? `/api/payments/check-purchase/${materialId}?guestId=${encodeURIComponent(guestId)}`
+        : `/api/payments/check-purchase/${materialId}`;
+      const response = await fetch(url, {
+        headers: token ? authService.getAuthHeaders() : { 'Accept': 'application/json' }
       });
       if (response.ok) {
         const data = await response.json();
@@ -599,14 +497,15 @@ const Materials = () => {
     
     setProcessingPayment(material._id);
     try {
-      // Create payment link with QR code
+      const token = authService.getToken();
+      const guestId = getOrCreateGuestId();
       const linkResponse = await fetch('/api/payments/create-payment-link', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...authService.getAuthHeaders()
+          ...(token ? authService.getAuthHeaders() : { 'Accept': 'application/json' })
         },
-        body: JSON.stringify({ materialId: material._id })
+        body: JSON.stringify({ materialId: material._id, guestId })
       });
 
       if (!linkResponse.ok) {
@@ -619,13 +518,19 @@ const Materials = () => {
           });
           return;
         }
-        
-        // Check if it's a payment configuration error
+        if (linkResponse.status === 401) {
+          toast({
+            title: "Session expired",
+            description: "Please refresh and try again.",
+            variant: "destructive",
+          });
+          return;
+        }
         if (linkResponse.status === 503 || errorData.code === 'PAYMENT_NOT_CONFIGURED') {
           throw new Error('Payment service is not configured. Please contact the administrator to enable payments.');
         }
-        
-        throw new Error(errorData.error || 'Failed to create payment link');
+        const msg = [errorData.error, errorData.details].filter(Boolean).join('. ');
+        throw new Error(msg || 'Failed to create payment link');
       }
 
       const linkData = await linkResponse.json();
@@ -639,9 +544,7 @@ const Materials = () => {
       });
       setShowQRPayment(true);
       setProcessingPayment(null);
-
-      // Start polling for payment status
-      startPaymentStatusPolling(material._id, linkData.paymentLinkId);
+      startPaymentStatusPolling(material._id, linkData.paymentLinkId, guestId);
     } catch (error: any) {
       console.error('QR Payment error:', error);
       let errorMessage = error.message || "Failed to create payment link. Please try again.";
@@ -660,13 +563,16 @@ const Materials = () => {
     }
   };
 
-  // Poll payment status for QR code payments
-  const startPaymentStatusPolling = (materialId: string, paymentLinkId: string) => {
+  const startPaymentStatusPolling = (materialId: string, _paymentLinkId: string, guestId?: string) => {
     setCheckingPaymentStatus(true);
+    const url = guestId
+      ? `/api/payments/check-purchase/${materialId}?guestId=${encodeURIComponent(guestId)}`
+      : `/api/payments/check-purchase/${materialId}`;
+    const hasAuth = !guestId && authService.getToken();
     const pollInterval = setInterval(async () => {
       try {
-        const checkResponse = await fetch(`/api/payments/check-purchase/${materialId}`, {
-          headers: authService.getAuthHeaders()
+        const checkResponse = await fetch(url, {
+          headers: hasAuth ? authService.getAuthHeaders() : { 'Accept': 'application/json' }
         });
 
         if (checkResponse.ok) {
@@ -676,28 +582,10 @@ const Materials = () => {
             setCheckingPaymentStatus(false);
             setShowQRPayment(false);
             setPurchasedMaterials(prev => new Set([...prev, materialId]));
-            
             toast({ 
               title: "Payment Successful!", 
-              description: "Your payment has been verified. Generating download link..." 
+              description: "You can now view the material. Click View to open it." 
             });
-
-            // Generate secure download link
-            const linkResponse = await fetch('/api/payments/generate-download-link', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                ...authService.getAuthHeaders()
-              },
-              body: JSON.stringify({ materialId: materialId })
-            });
-
-            if (linkResponse.ok) {
-              const linkData = await linkResponse.json();
-              setTimeout(() => {
-                window.open(linkData.downloadUrl, '_blank');
-              }, 1000);
-            }
           }
         }
       } catch (error) {
@@ -718,14 +606,15 @@ const Materials = () => {
     
     setProcessingPayment(material._id);
     try {
-      // Create payment order
+      const token = authService.getToken();
+      const guestId = getOrCreateGuestId();
       const orderResponse = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...authService.getAuthHeaders()
+          ...(token ? authService.getAuthHeaders() : { 'Accept': 'application/json' })
         },
-        body: JSON.stringify({ materialId: material._id })
+        body: JSON.stringify({ materialId: material._id, guestId })
       });
 
       if (!orderResponse.ok) {
@@ -738,18 +627,24 @@ const Materials = () => {
           });
           return;
         }
-        
-        // Check if it's a payment configuration error
+        if (orderResponse.status === 401) {
+          toast({
+            title: "Session expired",
+            description: "Please refresh and try again.",
+            variant: "destructive",
+          });
+          return;
+        }
         if (orderResponse.status === 503 || errorData.code === 'PAYMENT_NOT_CONFIGURED') {
           throw new Error('Payment service is not configured. Please contact the administrator to enable payments.');
         }
-        
-        throw new Error(errorData.error || 'Failed to create payment order');
+        const orderMsg = [errorData.error, errorData.details].filter(Boolean).join('. ');
+        throw new Error(orderMsg || 'Failed to create payment order');
       }
 
       const orderData = await orderResponse.json();
 
-      console.log('📦 Order data received from server:', {
+      devLog('📦 Order data received from server:', {
         hasOrderId: !!orderData.orderId,
         hasAmount: !!orderData.amount,
         hasKeyId: !!orderData.keyId,
@@ -796,9 +691,9 @@ const Materials = () => {
         throw new Error('Invalid Razorpay key ID format');
       }
 
-      console.log('✅ Order data validated:', {
+      devLog('✅ Order data validated:', {
         orderId: orderId.substring(0, 20) + '...',
-        orderIdFull: orderId, // Log full order ID for debugging
+        orderIdFull: orderId,
         amount: amount,
         amountInRupees: (amount / 100).toFixed(2),
         currency: currency,
@@ -821,10 +716,10 @@ const Materials = () => {
       // This is important for Razorpay's v2 API which may have propagation delays
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      console.log('⏳ Order propagation delay completed, initializing payment...');
+      devLog('⏳ Order propagation delay completed, initializing payment...');
 
       // Initialize Razorpay payment
-      console.log('🔄 Calling initializePayment with validated data...');
+      devLog('🔄 Calling initializePayment with validated data...');
       const paymentResponse: RazorpayResponse = await initializePayment(
         orderId,
         amount,
@@ -835,7 +730,7 @@ const Materials = () => {
         user?.email
       );
 
-      console.log('✅ Payment initialized successfully, verifying...');
+      devLog('✅ Payment initialized successfully, verifying...');
 
       // Verify payment
       const verifyResponse = await fetch('/api/payments/verify-payment', {
@@ -856,39 +751,11 @@ const Materials = () => {
         throw new Error(errorData.error || 'Payment verification failed');
       }
 
-      // Payment successful - generate secure download link
-      const linkResponse = await fetch('/api/payments/generate-download-link', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authService.getAuthHeaders()
-        },
-        body: JSON.stringify({ materialId: material._id })
+      setPurchasedMaterials(prev => new Set([...prev, material._id]));
+      toast({ 
+        title: "Payment Successful!", 
+        description: "You can now view this material. Click View to open it." 
       });
-
-      if (linkResponse.ok) {
-        const linkData = await linkResponse.json();
-        setPurchasedMaterials(prev => new Set([...prev, material._id]));
-        toast({ 
-          title: "Payment Successful!", 
-          description: "You can now download this material." 
-        });
-
-        // Automatically download using secure link
-        setTimeout(() => {
-          window.open(linkData.downloadUrl, '_blank');
-        }, 1000);
-      } else {
-        // Fallback to regular download if link generation fails
-        setPurchasedMaterials(prev => new Set([...prev, material._id]));
-        toast({ 
-          title: "Payment Successful!", 
-          description: "You can now download this material." 
-        });
-        setTimeout(() => {
-          handleDownload(material);
-        }, 1000);
-      }
     } catch (error: any) {
       console.error('❌ Payment processing error:', {
         error: error,
@@ -922,6 +789,23 @@ const Materials = () => {
   };
 
   const handleDownload = async (material: Material) => {
+    // For free, non-protected materials, allow direct download without hitting the API
+    const token = authService.getToken();
+    const isGuest = !token;
+
+    if (isGuest && (material.accessType === 'free' || !material.accessType)) {
+      if (!material.url) {
+        toast({
+          title: "Download Failed",
+          description: "No download URL available for this material.",
+          variant: "destructive",
+        });
+        return;
+      }
+      window.open(material.url, '_blank');
+      return;
+    }
+
     // Check access type and enforce restrictions
     if (material.accessType === 'paid') {
       // Check if user has purchased it
@@ -1098,21 +982,17 @@ const Materials = () => {
       
       // Debug logging for category filtering
       if (materialResourceType !== selectedCategory) {
-        console.log(`🚫 Material "${m.title}" filtered out - resourceType: "${materialResourceType}" !== selectedCategory: "${selectedCategory}"`);
+        devLog(`🚫 Material "${m.title}" filtered out - resourceType: "${materialResourceType}" !== selectedCategory: "${selectedCategory}"`);
       }
     }
     
     const matches = matchesSearch && matchesCategory;
     if (matches && selectedCategory !== 'all') {
-      console.log(`✅ Material "${m.title}" matches - resourceType: "${m.resourceType}", category: "${selectedCategory}"`);
+      devLog(`✅ Material "${m.title}" matches - resourceType: "${m.resourceType}", category: "${selectedCategory}"`);
     }
     
     return matches;
   });
-
-  if (!isAuthenticated) {
-    return null;
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 pb-16 md:pb-0">
@@ -1124,7 +1004,7 @@ const Materials = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate('/student-dashboard')}
+                onClick={() => navigate('/open-dashboard')}
                 className="hidden sm:inline-flex text-blue-600 hover:text-blue-700 bg-blue-500/10 backdrop-blur-sm border border-blue-200 hover:border-blue-400 rounded-full px-3"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -1152,7 +1032,7 @@ const Materials = () => {
                 variant="outline"
                 size="sm"
                 className="inline-flex sm:hidden rounded-full px-3 text-xs"
-                onClick={() => navigate('/student-dashboard')}
+                onClick={() => navigate('/open-dashboard')}
               >
                 <ArrowLeft className="w-3 h-3 mr-1" />
                 Home
@@ -1653,6 +1533,26 @@ const Materials = () => {
               </div>
         </div>
 
+            {/* Paid materials access info - shown when paid materials are visible */}
+            {!loading && filteredMaterials.some(m => m.accessType === 'paid') && (
+              <Card className="mb-6 border-blue-200 bg-blue-50/80 dark:bg-blue-950/20">
+                <CardContent className="p-4">
+                  <div className="flex gap-3">
+                    <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                    <div className="text-sm text-slate-700 dark:text-slate-300">
+                      <p className="font-medium text-blue-800 dark:text-blue-200 mb-1">Paid materials – guest checkout</p>
+                      <p className="mb-1">
+                        <strong>How to access:</strong> Pay without logging in. After payment, you can view the material on this website.
+                      </p>
+                      <p className="text-amber-700 dark:text-amber-400">
+                        <strong>When you may lose access:</strong> If you clear browser data (cookies/local storage), use a different browser or device, or use incognito/private mode.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Materials List */}
             {loading ? (
               <div className="text-center py-12">
@@ -1729,15 +1629,17 @@ const Materials = () => {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          {(material.type?.toLowerCase() === 'pdf' || material.type?.toLowerCase() === 'video') && (
-                    <Button
+                          {/* View: only for free/drive OR paid+purchased — paid content hidden until payment */}
+                          {(material.type?.toLowerCase() === 'pdf' || material.type?.toLowerCase() === 'video') &&
+                            (material.accessType !== 'paid' || purchasedMaterials.has(material._id)) && (
+                            <Button
                               variant="outline"
-                      size="sm"
+                              size="sm"
                               onClick={() => setViewingMaterial(material)}
-                    >
+                            >
                               <Eye className="w-4 h-4 mr-1" />
                               View
-                    </Button>
+                            </Button>
                           )}
                           {material.accessType === 'paid' && !purchasedMaterials.has(material._id) ? (
                             <div className="flex gap-2 flex-1 flex-col">
@@ -1751,7 +1653,7 @@ const Materials = () => {
                                   variant="default"
                                   size="sm"
                                   className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50"
-                                  onClick={() => handlePayment(material)}
+                                  onClick={() => handleQRPayment(material)}
                                   disabled={processingPayment === material._id || paymentConfigured === false}
                                   title={paymentConfigured === false ? "Payment service is not configured. Please contact administrator." : undefined}
                                 >
@@ -1786,15 +1688,20 @@ const Materials = () => {
                               </div>
                             </div>
                           ) : (
-                            <Button
-                              variant="default"
-                              size="sm"
-                              className="flex-1"
-                              onClick={() => handleDownload(material)}
-                            >
-                              <Download className="w-4 h-4 mr-1" />
-                              Download
-                            </Button>
+                            <>
+                              {/* Paid materials: view-only after purchase (no download). Free: allow download. */}
+                              {material.accessType !== 'paid' && (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="flex-1"
+                                  onClick={() => handleDownload(material)}
+                                >
+                                  <Download className="w-4 h-4 mr-1" />
+                                  Download
+                                </Button>
+                              )}
+                            </>
                           )}
                           {material.accessType === 'paid' && (
                             <Badge variant="outline" className="ml-2 border-yellow-500 text-yellow-700">
@@ -1802,6 +1709,26 @@ const Materials = () => {
                               Paid
                             </Badge>
                           )}
+                          {/* Share: copy website link to material (always production URL) */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => {
+                              const params = new URLSearchParams();
+                              if (selectedBranch) params.set('branch', selectedBranch);
+                              if (selectedSemester != null) params.set('semester', String(selectedSemester));
+                              if (selectedSubject?.code) params.set('subject', selectedSubject.code);
+                              params.set('material', material._id);
+                              const shareBaseUrl = 'https://www.digidiploma.in';
+                              const url = `${shareBaseUrl}/materials?${params.toString()}`;
+                              navigator.clipboard.writeText(url);
+                              toast({ title: 'Link copied', description: 'Share link copied to clipboard.' });
+                            }}
+                            title="Copy share link"
+                          >
+                            <Share2 className="w-4 h-4" />
+                          </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -1834,11 +1761,16 @@ const Materials = () => {
                     Scan this QR code with any UPI app (Google Pay, PhonePe, Paytm, etc.)
                   </p>
                   <div className="bg-white p-4 rounded-lg border-2 border-slate-200 inline-block">
-                    <img 
-                      src={qrPaymentData.qrCode} 
-                      alt="UPI QR Code" 
-                      className="w-64 h-64 mx-auto"
-                    />
+                    {qrPaymentData.shortUrl ? (
+                      <QRCodeSVG 
+                        value={qrPaymentData.shortUrl} 
+                        size={256} 
+                        level="M"
+                        className="w-64 h-64 mx-auto block"
+                      />
+                    ) : (
+                      <div className="w-64 h-64 flex items-center justify-center text-slate-400 text-sm">QR not available</div>
+                    )}
                   </div>
                   <p className="text-lg font-semibold mt-4">
                     Amount: ₹{qrPaymentData.amount}
@@ -1854,7 +1786,7 @@ const Materials = () => {
                   </p>
                   <Button
                     variant="outline"
-                    className="w-full"
+                    className="w-full bg-green-600 hover:bg-green-700 text-white border-green-600"
                     onClick={() => window.open(qrPaymentData.shortUrl, '_blank')}
                   >
                     Open Payment Link
@@ -1870,7 +1802,7 @@ const Materials = () => {
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <p className="text-xs text-blue-800">
-                    💡 <strong>Note:</strong> After payment, this dialog will automatically close and your download will start. 
+                    💡 <strong>Note:</strong> After payment, this dialog will close and you can view the material. 
                     Please keep this window open.
                   </p>
                 </div>
@@ -1902,9 +1834,11 @@ const Materials = () => {
                   semester: viewingMaterial.semester || selectedSemester || 1,
                   tags: [],
                   downloads: viewingMaterial.downloads || 0,
-                  rating: 0,
-                  ratingCount: 0,
-                  createdAt: viewingMaterial.createdAt || new Date().toISOString()
+                  rating: viewingMaterial.rating ?? 0,
+                  ratingCount: viewingMaterial.ratingCount ?? 0,
+                  createdAt: viewingMaterial.createdAt || new Date().toISOString(),
+                  accessType: viewingMaterial.accessType,
+                  price: viewingMaterial.price
                 }}
               />
             </DialogContent>

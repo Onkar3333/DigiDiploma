@@ -16,9 +16,21 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requiredUserType,
   fallbackPath = '/',
 }) => {
-  const { user, isLoading, isAuthenticated } = useAuth();
+  const { user, isLoading } = useAuth();
   const location = useLocation();
   const [maintenance, setMaintenance] = useState(false);
+
+  // In this build we allow students to access protected routes
+  // even when they are not formally authenticated. When no user
+  // is present, we fall back to a default "guest" student user.
+  const effectiveUser = user || {
+    id: 'guest',
+    name: 'Student',
+    email: '',
+    branch: 'Computer Engineering',
+    userType: 'student' as const,
+    semester: '1',
+  };
 
   useEffect(() => {
     const check = async () => {
@@ -43,19 +55,15 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       </div>
     );
   }
-
-  if (!isAuthenticated) {
-    // Redirect to landing with login prompt so the login panel opens
-    return <Navigate to="/?login=1" state={{ from: location }} replace />;
-  }
-
-  if (requiredUserType && user?.userType !== requiredUserType) {
+  
+  // Auth is bypassed; only enforce role-based access where needed.
+  if (requiredUserType && effectiveUser.userType !== requiredUserType) {
     return <Navigate to={fallbackPath} replace />;
   }
 
   // If maintenance is on and user is not admin, block access
-  if (maintenance && user?.userType !== 'admin') {
-    return <MaintenancePage user={user} />;
+  if (maintenance && effectiveUser.userType !== 'admin') {
+    return <MaintenancePage user={effectiveUser} />;
   }
 
   return <>{children}</>;

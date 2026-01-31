@@ -265,8 +265,14 @@ const Profile = () => {
     if (userData?.userType === 'admin') {
       navigate('/admin-dashboard');
     } else {
-      navigate('/student-dashboard');
+      navigate('/open-dashboard');
     }
+  };
+
+  const handleLogout = () => {
+    logout();
+    toast({ title: "Logged out successfully", description: "You have been logged out." });
+    navigate("/");
   };
 
   const formatDate = (date: any) => {
@@ -325,7 +331,7 @@ const Profile = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={logout}
+              onClick={handleLogout}
               className="bg-white/90 text-primary border-primary hover:bg-white hover:text-primary shadow-md"
             >
               <LogOut className="w-4 h-4 mr-2" />

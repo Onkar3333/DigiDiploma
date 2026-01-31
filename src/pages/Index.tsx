@@ -4,18 +4,17 @@ import BranchSelection from "@/components/BranchSelection";
 import FloatingBooksBackground from "@/components/FloatingBooksBackground";
 import { useToast } from "@/hooks/use-toast";
 import { useTypingEffect } from "@/hooks/useTypingEffect";
-import { useNavigate, Link, useLocation } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate, Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { 
-  Sparkles, 
-  BookOpen, 
-  Users, 
-  Award, 
+import {
+  Sparkles,
+  BookOpen,
+  Users,
+  Award,
   Star,
   ArrowRight,
   Play,
@@ -48,18 +47,13 @@ import {
 } from "lucide-react";
 import CollegeNoticeBoard from "@/components/CollegeNoticeBoard";
 import ScrollingNoticeBoard from "@/components/ScrollingNoticeBoard";
-import LoginForm from "@/components/LoginForm";
-import { authService } from "@/lib/auth";
 import { getBranchImage } from "@/lib/branchImages";
 import { ALL_BRANCHES } from "@/constants/branches";
 
 const Index = () => {
-  const [currentState, setCurrentState] = useState<'home' | 'login' | 'branches'>('home');
-  const [userType, setUserType] = useState<'student' | 'admin' | null>(null);
+  const [currentState, setCurrentState] = useState<'home' | 'branches'>('home');
   const { toast } = useToast();
   const navigate = useNavigate();
-  const location = useLocation();
-  const { login, register } = useAuth();
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -162,14 +156,6 @@ const Index = () => {
     // Stats are kept static: 1250+ Active Students, 45+ Faculty Members, 120+ Courses Available, 850+ Study Materials
   }, []);
 
-  // Open login if redirected with ?login=1
-  useEffect(() => {
-    try {
-      const params = new URLSearchParams(location.search);
-      if (params.get('login') === '1') setCurrentState('login');
-    } catch {}
-  }, [location.search]);
-
   const fetchNotices = async () => {
     try {
       const res = await fetch("/api/notices/public");
@@ -182,73 +168,6 @@ const Index = () => {
     }
   };
 
-
-  type AuthResult = { success: boolean; error?: string; message?: string };
-
-  const handleLogin = async (credentials): Promise<AuthResult> => {
-    try {
-      const result = (await login(credentials)) as AuthResult;
-      if (result.success) {
-        const user = JSON.parse(localStorage.getItem('auth_user') || '{}');
-        
-        // Navigate based on user type
-        if (user.userType === 'admin') {
-          toast({ 
-            title: "Admin Login Successful!", 
-            description: `Welcome back, ${user.name}! Redirecting to admin panel...` 
-          });
-          setTimeout(() => {
-            navigate('/admin-dashboard');
-          }, 1000);
-        } else {
-          toast({ 
-            title: "Student Login Successful!", 
-            description: `Welcome back, ${user.name}! Redirecting to student dashboard...` 
-          });
-          setTimeout(() => {
-            navigate('/student-dashboard');
-          }, 1000);
-        }
-        return result;
-      } else {
-        // Return error result so LoginForm can display it
-        return result;
-      }
-    } catch (err: any) {
-      const errorMsg = err.message || "Network error. Please check your connection and try again.";
-      toast({ 
-        title: "Login Failed", 
-        description: errorMsg, 
-        variant: "destructive" 
-      });
-      return { success: false, error: errorMsg };
-    }
-  };
-
-  const handleCreateAccount = async (credentials) => {
-    try {
-      const result = (await register(credentials)) as AuthResult;
-      if (result.success) {
-        toast({ 
-          title: "Account Created Successfully!", 
-          description: result.message || `Welcome ${credentials.name}! Your account has been created. You can now login.` 
-        });
-        setCurrentState('home');
-        return result;
-      } else {
-        // Return error result so LoginForm can display it
-        return result;
-      }
-    } catch (err: any) {
-      const errorMsg = err.message || "Network error. Please check your connection and try again.";
-      toast({ 
-        title: "Registration Failed", 
-        description: errorMsg, 
-        variant: "destructive" 
-      });
-      return { success: false, error: errorMsg };
-    }
-  };
 
   const handleBranchSelect = (branchId) => {
     toast({ title: "Branch Selected", description: "Redirecting to semester selection..." });
@@ -275,7 +194,7 @@ const Index = () => {
                 </div>
               </div>
             </div>
-            
+
             <div className="hidden md:flex items-center space-x-8">
               <Link to="/" className="text-slate-700 hover:text-blue-600 font-medium transition-colors">
                 Home
@@ -295,12 +214,6 @@ const Index = () => {
               <Link to="/contact" className="text-slate-700 hover:text-blue-600 font-medium transition-colors">
                 Contact
               </Link>
-              <Button 
-                onClick={() => setCurrentState('login')}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-              >
-                Login
-              </Button>
               <Button
                 variant="outline"
                 onClick={() => window.open('https://chat.whatsapp.com/BXyJ9ykaMnKKyHokiz2lII?mode=hqrt2', '_blank')}
@@ -312,8 +225,8 @@ const Index = () => {
             </div>
 
             <div className="md:hidden">
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="sm"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="touch-manipulation"
@@ -322,38 +235,38 @@ const Index = () => {
                 <Menu className="w-5 h-5" />
               </Button>
             </div>
-            
+
             {/* Mobile Menu Dropdown */}
             {mobileMenuOpen && (
               <div className="absolute top-16 left-0 right-0 bg-white border-b border-slate-200 shadow-lg md:hidden z-50">
                 <div className="flex flex-col py-2">
-                  <Link 
-                    to="/" 
+                  <Link
+                    to="/"
                     className="group relative px-4 py-3 text-slate-700 font-medium transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 hover:shadow-sm hover:scale-[1.02] hover:pl-6"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     <span className="relative z-10">Home</span>
                     <span className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
                   </Link>
-                  <Link 
-                    to="/materials" 
+                  <Link
+                    to="/materials"
                     className="group relative px-4 py-3 text-slate-700 font-medium transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 hover:shadow-sm hover:scale-[1.02] hover:pl-6"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     <span className="relative z-10">Materials</span>
                     <span className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
                   </Link>
-                  <Link 
-                    to="/projects" 
+                  <Link
+                    to="/projects"
                     className="group relative px-4 py-3 text-slate-700 font-medium transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 hover:shadow-sm hover:scale-[1.02] hover:pl-6"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     <span className="relative z-10">Projects</span>
                     <span className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
                   </Link>
-                  <a 
-                    href="/internship" 
-                    target="_blank" 
+                  <a
+                    href="/internship"
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="group relative px-4 py-3 text-slate-700 font-medium transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 hover:shadow-sm hover:scale-[1.02] hover:pl-6"
                     onClick={() => setMobileMenuOpen(false)}
@@ -361,16 +274,16 @@ const Index = () => {
                     <span className="relative z-10">Internship</span>
                     <span className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
                   </a>
-                  <Link 
-                    to="/about" 
+                  <Link
+                    to="/about"
                     className="group relative px-4 py-3 text-slate-700 font-medium transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 hover:shadow-sm hover:scale-[1.02] hover:pl-6"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     <span className="relative z-10">About</span>
                     <span className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
                   </Link>
-                  <Link 
-                    to="/contact" 
+                  <Link
+                    to="/contact"
                     className="group relative px-4 py-3 text-slate-700 font-medium transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:text-blue-600 hover:shadow-sm hover:scale-[1.02] hover:pl-6"
                     onClick={() => setMobileMenuOpen(false)}
                   >
@@ -378,15 +291,7 @@ const Index = () => {
                     <span className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
                   </Link>
                   <div className="border-t border-slate-200 mt-2 pt-2 px-4 pb-2">
-                    <button
-                      onClick={() => {
-                        setCurrentState('login');
-                        setMobileMenuOpen(false);
-                      }}
-                      className="w-full mb-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium text-sm transition-all duration-300 hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.98]"
-                    >
-                      Login
-                    </button>
+                    {/* Login removed in public build */}
                     <button
                       onClick={() => {
                         window.open('https://chat.whatsapp.com/BXyJ9ykaMnKKyHokiz2lII?mode=hqrt2', '_blank');
@@ -409,18 +314,18 @@ const Index = () => {
       <section className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 py-20">
         <FloatingBooksBackground />
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-20"></div>
-        
+
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-6 py-3 mb-8 border border-white/20">
               <Sparkles className="w-5 h-5 text-yellow-300" />
               <span className="text-white font-medium">Revolutionizing Digital Education</span>
               <Star className="w-4 h-4 text-yellow-300" />
-          </div>
-            
+            </div>
+
             <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
               <span className="block">
-                <span 
+                <span
                   className="bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent inline-block"
                   style={{
                     WebkitBackgroundClip: 'text',
@@ -433,29 +338,29 @@ const Index = () => {
                 </span>
                 <span className="animate-pulse text-white">|</span>
               </span>
-          </h1>
-            
+            </h1>
+
             <p className="text-xl md:text-2xl text-blue-100 mb-12 max-w-4xl mx-auto leading-relaxed">
               All your Diploma & Engineering free resources, affordable courses in one place with huge community
             </p>
-            
+
             <div className="flex flex-col sm:flex-row gap-6 justify-center mb-16">
-              <Button 
-                size="lg" 
-            onClick={() => setCurrentState('login')}
+              <Button
+                size="lg"
+                onClick={() => navigate('/open-dashboard')}
                 className="bg-white text-blue-600 hover:bg-blue-50 h-14 px-8 text-lg font-semibold shadow-xl hover:shadow-2xl transition-all duration-300"
               >
                 <BookOpen className="w-6 h-6 mr-3" />
-                Explore Courses
+                Go to Dashboard
                 <ArrowRight className="w-6 h-6 ml-3" />
               </Button>
-              <Button 
-                size="lg" 
+              <Button
+                size="lg"
                 onClick={() => navigate('/materials')}
                 className="bg-black text-white hover:bg-gray-800 h-14 px-8 text-lg font-bold border-2 border-black"
               >
                 <Download className="w-6 h-6 mr-3" />
-            Get Free Resources
+                Get Free Resources
               </Button>
               <Button
                 size="lg"
@@ -548,25 +453,13 @@ const Index = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Login and Branch Selection Panel */}
-      {currentState === 'login' && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="max-w-md mx-auto">
-          <LoginForm 
-            onLogin={handleLogin}
-            onCreate={handleCreateAccount}
-            onClose={() => setCurrentState('home')}
-          />
-          </div>
-        </div>
-      )}
-      
+      {/* Branch Selection Panel */}
       {currentState === 'branches' && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="max-w-4xl mx-auto">
-          <BranchSelection 
-            onBranchSelect={handleBranchSelect}
-          />
+            <BranchSelection
+              onBranchSelect={handleBranchSelect}
+            />
           </div>
         </div>
       )}
@@ -581,7 +474,7 @@ const Index = () => {
             <p className="text-xl text-slate-600 max-w-3xl mx-auto">
               Experience the future of education with our comprehensive digital platform designed specifically for diploma students.
             </p>
-            </div>
+          </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             <FeatureCard
@@ -621,7 +514,7 @@ const Index = () => {
               color="indigo"
             />
           </div>
-            </div>
+        </div>
       </section>
 
       {/* Branch Overview Section */}
@@ -768,8 +661,8 @@ const Index = () => {
                 </AccordionTrigger>
                 <AccordionContent className="px-6 pb-4 text-slate-600">
                   <p className="leading-relaxed">
-                    DigiDiploma is a comprehensive digital learning platform designed specifically for diploma and engineering students. 
-                    It provides free study materials, project resources, course management, and a collaborative community. 
+                    DigiDiploma is a comprehensive digital learning platform designed specifically for diploma and engineering students.
+                    It provides free study materials, project resources, course management, and a collaborative community.
                     Whether you're studying Computer Engineering, Mechanical, Civil, or any other branch, DigiDiploma has resources tailored to your needs.
                   </p>
                 </AccordionContent>
@@ -786,7 +679,7 @@ const Index = () => {
                 </AccordionTrigger>
                 <AccordionContent className="px-6 pb-4 text-slate-600">
                   <p className="leading-relaxed">
-                    Yes! All study materials including PDFs, PPTs, videos, and handwritten notes are completely free. 
+                    Yes! All study materials including PDFs, PPTs, videos, and handwritten notes are completely free.
                     We believe in making quality education accessible to everyone. You can browse materials by branch, semester, and subject without any cost.
                   </p>
                 </AccordionContent>
@@ -803,8 +696,8 @@ const Index = () => {
                 </AccordionTrigger>
                 <AccordionContent className="px-6 pb-4 text-slate-600">
                   <p className="leading-relaxed">
-                    We support all major engineering branches including Computer Engineering, Information Technology, 
-                    Mechanical, Electrical, Civil, ENTC, Automobile, Instrumentation, AIML, and Mechatronics Engineering. 
+                    We support all major engineering branches including Computer Engineering, Information Technology,
+                    Mechanical, Electrical, Civil, ENTC, Automobile, Instrumentation, AIML, and Mechatronics Engineering.
                     Each branch has dedicated resources organized by semester and subject.
                   </p>
                 </AccordionContent>
@@ -821,8 +714,8 @@ const Index = () => {
                 </AccordionTrigger>
                 <AccordionContent className="px-6 pb-4 text-slate-600">
                   <p className="leading-relaxed">
-                    Creating an account is simple and free! Click on the "Login" button, then select "Create Account". 
-                    Fill in your details including your name, email, enrollment number, college, branch, and semester. 
+                    Creating an account is simple and free! Click on the "Login" button, then select "Create Account".
+                    Fill in your details including your name, email, enrollment number, college, branch, and semester.
                     Once registered, you'll have full access to all features and materials.
                   </p>
                 </AccordionContent>
@@ -841,8 +734,8 @@ const Index = () => {
                 </AccordionTrigger>
                 <AccordionContent className="px-6 pb-4 text-slate-600">
                   <p className="leading-relaxed">
-                    Yes, you can download PDFs, PPTs, and other study materials directly to your device for offline access. 
-                    This allows you to study anytime, anywhere, even without an internet connection. 
+                    Yes, you can download PDFs, PPTs, and other study materials directly to your device for offline access.
+                    This allows you to study anytime, anywhere, even without an internet connection.
                     Simply click the download button on any material you want to save.
                   </p>
                 </AccordionContent>
@@ -859,8 +752,8 @@ const Index = () => {
                 </AccordionTrigger>
                 <AccordionContent className="px-6 pb-4 text-slate-600">
                   <p className="leading-relaxed">
-                    Absolutely! We have an active WhatsApp community where students can connect, share resources, 
-                    discuss projects, and help each other. You can join our community through the "Join Community" button 
+                    Absolutely! We have an active WhatsApp community where students can connect, share resources,
+                    discuss projects, and help each other. You can join our community through the "Join Community" button
                     on the homepage. It's a great place to network and collaborate with fellow students.
                   </p>
                 </AccordionContent>
@@ -877,8 +770,8 @@ const Index = () => {
                 </AccordionTrigger>
                 <AccordionContent className="px-6 pb-4 text-slate-600">
                   <p className="leading-relaxed">
-                    Your privacy and security are our top priorities. We use industry-standard encryption to protect your data, 
-                    and we never share your personal information with third parties. Your account is password-protected, 
+                    Your privacy and security are our top priorities. We use industry-standard encryption to protect your data,
+                    and we never share your personal information with third parties. Your account is password-protected,
                     and you have full control over your profile information.
                   </p>
                 </AccordionContent>
@@ -895,8 +788,8 @@ const Index = () => {
                 </AccordionTrigger>
                 <AccordionContent className="px-6 pb-4 text-slate-600">
                   <p className="leading-relaxed">
-                    Yes! DigiDiploma is fully responsive and works seamlessly on smartphones, tablets, and desktops. 
-                    You can access all features, browse materials, and manage your courses from any device. 
+                    Yes! DigiDiploma is fully responsive and works seamlessly on smartphones, tablets, and desktops.
+                    You can access all features, browse materials, and manage your courses from any device.
                     The mobile-friendly interface ensures a great experience on the go.
                   </p>
                 </AccordionContent>
@@ -906,7 +799,7 @@ const Index = () => {
 
           <div className="text-center mt-12">
             <p className="text-slate-600 mb-4">Still have questions?</p>
-            <Button 
+            <Button
               onClick={() => navigate('/contact')}
               className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
             >
@@ -927,16 +820,16 @@ const Index = () => {
             Join thousands of students who have already discovered the power of digital education with DigiDiploma.
           </p>
           <div className="flex flex-col sm:flex-row gap-6 justify-center">
-            <Button 
-              size="lg" 
-              onClick={() => setCurrentState('login')}
+            <Button
+              size="lg"
+              onClick={() => navigate('/open-dashboard')}
               className="bg-white text-blue-600 hover:bg-blue-50 h-14 px-8 text-lg font-semibold shadow-xl"
             >
               <BookOpen className="w-6 h-6 mr-3" />
-              Get Started Today
+              Go to Dashboard
             </Button>
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               onClick={() => navigate('/contact')}
               className="bg-black text-white hover:bg-gray-800 h-14 px-8 text-lg font-bold border-2 border-black"
             >
@@ -970,49 +863,49 @@ const Index = () => {
               <p className="text-slate-300 mb-6 max-w-md leading-relaxed">
                 Empowering diploma students with comprehensive study materials, project management, and interactive learning resources. Experience the future of education with our advanced digital platform.
               </p>
-              
-                             {/* Social Media Links */}
-               <div className="flex space-x-3">
-                 <SocialLink 
-                   href="https://www.instagram.com/digi_diploma.in?igsh=eHM5MjZteHVmbjlv" 
-                   icon={<Instagram className="w-5 h-5" />}
-                   label="Instagram"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                 />
-                 <SocialLink 
-                   href="https://chat.whatsapp.com/BXyJ9ykaMnKKyHokiz2lII?mode=hqrt2" 
-                   icon={<MessageCircle className="w-5 h-5" />}
-                   label="WhatsApp"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                 />
-                 <SocialLink 
-                   href="https://t.me/digidiploma" 
-                   icon={
-                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                       <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
-                     </svg>
-                   }
-                   label="Telegram"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                 />
-                 <SocialLink 
-                   href="https://www.linkedin.com/in/chaitanya-zagade-766051294?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app" 
-                   icon={<Linkedin className="w-5 h-5" />}
-                   label="LinkedIn"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                 />
-                 <SocialLink 
-                   href="https://www.youtube.com/@DigiDiploma" 
-                   icon={<Youtube className="w-5 h-5" />}
-                   label="YouTube"
-                   target="_blank"
-                   rel="noopener noreferrer"
-                 />
-               </div>
+
+              {/* Social Media Links */}
+              <div className="flex space-x-3">
+                <SocialLink
+                  href="https://www.instagram.com/digi_diploma.in?igsh=eHM5MjZteHVmbjlv"
+                  icon={<Instagram className="w-5 h-5" />}
+                  label="Instagram"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+                <SocialLink
+                  href="https://chat.whatsapp.com/BXyJ9ykaMnKKyHokiz2lII?mode=hqrt2"
+                  icon={<MessageCircle className="w-5 h-5" />}
+                  label="WhatsApp"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+                <SocialLink
+                  href="https://t.me/digidiploma"
+                  icon={
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+                    </svg>
+                  }
+                  label="Telegram"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+                <SocialLink
+                  href="https://www.linkedin.com/in/chaitanya-zagade-766051294?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app"
+                  icon={<Linkedin className="w-5 h-5" />}
+                  label="LinkedIn"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+                <SocialLink
+                  href="https://www.youtube.com/@DigiDiploma"
+                  icon={<Youtube className="w-5 h-5" />}
+                  label="YouTube"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+              </div>
             </div>
 
             {/* Quick Links */}
@@ -1038,13 +931,7 @@ const Index = () => {
                   </Link>
                 </li>
                 <li>
-                  <button 
-                    onClick={() => setCurrentState('login')}
-                    className="text-slate-300 hover:text-blue-400 transition-colors duration-200 flex items-center"
-                  >
-                    <ArrowRight className="w-3 h-3 mr-2" />
-                    Login
-                  </button>
+                  {/* Login link removed in public build */}
                 </li>
               </ul>
             </div>
@@ -1122,13 +1009,13 @@ const Index = () => {
             <div className="flex flex-col md:flex-row justify-between items-center">
               <div className="text-center md:text-left mb-4 md:mb-0">
                 <p className="text-slate-400 text-sm">
-        &copy; {new Date().getFullYear()} DigiDiploma. All rights reserved.
+                  &copy; {new Date().getFullYear()} DigiDiploma. All rights reserved.
                 </p>
                 <p className="text-slate-500 text-xs mt-1">
                   Designed and Developed by{' '}
-                  <a 
-                    href="https://github.com/Onkar3333/" 
-                    target="_blank" 
+                  <a
+                    href="https://github.com/Onkar3333/"
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:text-blue-800 hover:underline font-medium transition-colors duration-200"
                   >
@@ -1136,7 +1023,7 @@ const Index = () => {
                   </a>
                 </p>
               </div>
-              
+
               <div className="flex items-center space-x-6">
                 <Link to="/privacy" className="text-slate-400 hover:text-blue-400 text-sm transition-colors">
                   Privacy Policy
@@ -1171,7 +1058,7 @@ const FeatureCard = ({ icon, title, description, color }) => {
     <Card className="p-8 hover:shadow-xl transition-all duration-300 border-0 bg-white">
       <div className={`w-16 h-16 ${colorClasses[color]} rounded-2xl flex items-center justify-center mb-6`}>
         {icon}
-    </div>
+      </div>
       <h3 className="text-xl font-bold text-slate-900 mb-4">{title}</h3>
       <p className="text-slate-600 leading-relaxed">{description}</p>
     </Card>
@@ -1194,8 +1081,8 @@ const BranchCard = ({ icon, title, description, subjects, color }) => {
     <Card className="p-6 hover:shadow-xl transition-all duration-300 border-0 bg-white overflow-hidden group">
       <div className="relative mb-4">
         <div className={`w-full h-32 ${colorClasses[color]} rounded-xl flex items-center justify-center relative overflow-hidden`}>
-          <img 
-            src={branchImage} 
+          <img
+            src={branchImage}
             alt={`${title} theme`}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
             loading="lazy"
@@ -1212,7 +1099,7 @@ const BranchCard = ({ icon, title, description, subjects, color }) => {
           <div className="absolute inset-0 bg-gradient-to-br from-black/10 to-black/30"></div>
           <div className="absolute inset-0 flex items-center justify-center z-10">
             <div className={`w-14 h-14 ${colorClasses[color]} rounded-xl flex items-center justify-center shadow-lg backdrop-blur-sm bg-white/70 group-hover:scale-110 transition-transform duration-300`}>
-        {icon}
+              {icon}
             </div>
           </div>
         </div>
@@ -1225,7 +1112,7 @@ const BranchCard = ({ icon, title, description, subjects, color }) => {
             {subject}
           </Badge>
         ))}
-  </div>
+      </div>
     </Card>
   );
 };
@@ -1241,13 +1128,13 @@ const TestimonialCard = ({ name, role, text, rating }) => (
     <div>
       <div className="font-semibold text-slate-900">{name}</div>
       <div className="text-sm text-slate-500">{role}</div>
-  </div>
+    </div>
   </Card>
 );
 
 const SocialLink = ({ href, icon, label = "", target = "_blank", rel = "noopener noreferrer" }) => (
-  <a 
-    href={href} 
+  <a
+    href={href}
     target={target}
     rel={rel}
     className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors"
