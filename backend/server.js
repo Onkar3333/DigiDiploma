@@ -138,6 +138,11 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Avoid 404 noise: browsers often request favicon from API URL
+app.get('/favicon.ico', (req, res) => {
+  res.status(204).end();
+});
+
 // Maintenance middleware
 app.use(async (req, res, next) => {
   try {

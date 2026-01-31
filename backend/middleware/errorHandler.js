@@ -3,8 +3,9 @@ export const errorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
 
-  // Log error
-  console.error(err);
+  // Log error (skip noisy 404s for favicon/robots)
+  const isQuiet404 = err.statusCode === 404 && /^\/(favicon\.ico|robots\.txt)$/.test(req.originalUrl?.split('?')[0] || '');
+  if (!isQuiet404) console.error(err);
 
   // Mongoose bad ObjectId
   if (err.name === 'CastError') {
