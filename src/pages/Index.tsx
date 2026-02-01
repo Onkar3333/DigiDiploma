@@ -43,12 +43,78 @@ import {
   CreditCard,
   Lock,
   Globe,
-  Send
+  Send,
+  Car,
+  Radio
 } from "lucide-react";
 import CollegeNoticeBoard from "@/components/CollegeNoticeBoard";
 import ScrollingNoticeBoard from "@/components/ScrollingNoticeBoard";
 import { getBranchImage } from "@/lib/branchImages";
 import { ALL_BRANCHES } from "@/constants/branches";
+
+// Config for each branch card (icon, description, subjects, color) — must match ALL_BRANCHES order/names
+const BRANCH_CARD_CONFIG: Record<string, { icon: React.ReactNode; description: string; subjects: string[]; color: string }> = {
+  "Computer Engineering": {
+    icon: <Code className="w-8 h-8" />,
+    description: "Programming, software development, and computer systems with modern technologies.",
+    subjects: ["Programming", "Database", "Web Development", "Networking"],
+    color: "blue"
+  },
+  "Information Technology": {
+    icon: <Smartphone className="w-8 h-8" />,
+    description: "IT infrastructure, software applications, and digital transformation solutions.",
+    subjects: ["IT Fundamentals", "Software Engineering", "Cloud Computing", "Cybersecurity"],
+    color: "green"
+  },
+  "Electronics & Telecommunication": {
+    icon: <Radio className="w-8 h-8" />,
+    description: "Electronics and telecommunications with modern communication systems.",
+    subjects: ["Electronics", "Communication", "Signal Processing", "Telecom"],
+    color: "purple"
+  },
+  "Mechanical Engineering": {
+    icon: <Cpu className="w-8 h-8" />,
+    description: "Machine design, manufacturing processes, and mechanical systems engineering.",
+    subjects: ["Machine Design", "Thermodynamics", "Manufacturing", "CAD/CAM"],
+    color: "orange"
+  },
+  "Electrical Engineering": {
+    icon: <Brain className="w-8 h-8" />,
+    description: "Electrical systems, power generation, and electronic circuit design.",
+    subjects: ["Circuit Theory", "Power Systems", "Electronics", "Control Systems"],
+    color: "yellow"
+  },
+  "Civil Engineering": {
+    icon: <Target className="w-8 h-8" />,
+    description: "Infrastructure development, construction management, and structural design.",
+    subjects: ["Structural Analysis", "Construction", "Surveying", "Transportation"],
+    color: "brown"
+  },
+  "Automobile Engineering": {
+    icon: <Car className="w-8 h-8" />,
+    description: "Vehicle design, automotive systems, and transportation engineering.",
+    subjects: ["Vehicle Dynamics", "Engine Systems", "Automotive Electronics", "EV/Hybrid"],
+    color: "orange"
+  },
+  "Instrumentation Engineering": {
+    icon: <Shield className="w-8 h-8" />,
+    description: "Measurement systems, process control, and industrial instrumentation.",
+    subjects: ["Sensors", "Process Control", "Automation", "Industrial IoT"],
+    color: "purple"
+  },
+  "Artificial Intelligence & Machine Learning (AIML)": {
+    icon: <Brain className="w-8 h-8" />,
+    description: "Data science, neural networks, and AI-driven automation projects.",
+    subjects: ["AI Fundamentals", "Machine Learning", "Deep Learning", "MLOps"],
+    color: "blue"
+  },
+  "Mechatronics Engineering": {
+    icon: <Cpu className="w-8 h-8" />,
+    description: "Robotics, intelligent systems, and modern mechatronic integration.",
+    subjects: ["Robotics", "Embedded Systems", "Sensors & Actuators", "Smart Manufacturing"],
+    color: "orange"
+  }
+};
 
 const Index = () => {
   const [currentState, setCurrentState] = useState<'home' | 'branches'>('home');
@@ -169,9 +235,23 @@ const Index = () => {
   };
 
 
-  const handleBranchSelect = (branchId) => {
-    toast({ title: "Branch Selected", description: "Redirecting to semester selection..." });
-    navigate('/semester-selection', { state: { selectedBranch: branchId } });
+  const handleBranchSelect = (branchNameOrId: string) => {
+    // BranchSelection may pass id (e.g. 'computer'); map to full name for Materials page URL
+    const nameMap: Record<string, string> = {
+      computer: 'Computer Engineering',
+      it: 'Information Technology',
+      electronics: 'Electronics & Telecommunication',
+      mechanical: 'Mechanical Engineering',
+      electrical: 'Electrical Engineering',
+      civil: 'Civil Engineering',
+      automobile: 'Automobile Engineering',
+      instrumentation: 'Instrumentation Engineering',
+      aiml: 'Artificial Intelligence & Machine Learning (AIML)',
+      mechatronics: 'Mechatronics Engineering'
+    };
+    const branchName = nameMap[branchNameOrId] || branchNameOrId;
+    toast({ title: "Branch Selected", description: "Opening materials for your branch..." });
+    navigate(`/materials?branch=${encodeURIComponent(branchName)}`);
   };
 
   return (
@@ -530,69 +610,25 @@ const Index = () => {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <BranchCard
-              icon={<Code className="w-8 h-8" />}
-              title="Computer Engineering"
-              description="Programming, software development, and computer systems with modern technologies."
-              subjects={["Programming", "Database", "Web Development", "Networking"]}
-              color="blue"
-            />
-            <BranchCard
-              icon={<Smartphone className="w-8 h-8" />}
-              title="Information Technology"
-              description="IT infrastructure, software applications, and digital transformation solutions."
-              subjects={["IT Fundamentals", "Software Engineering", "Cloud Computing", "Cybersecurity"]}
-              color="green"
-            />
-            <BranchCard
-              icon={<Cpu className="w-8 h-8" />}
-              title="Mechanical Engineering"
-              description="Machine design, manufacturing processes, and mechanical systems engineering."
-              subjects={["Machine Design", "Thermodynamics", "Manufacturing", "CAD/CAM"]}
-              color="orange"
-            />
-            <BranchCard
-              icon={<Brain className="w-8 h-8" />}
-              title="Electrical Engineering"
-              description="Electrical systems, power generation, and electronic circuit design."
-              subjects={["Circuit Theory", "Power Systems", "Electronics", "Control Systems"]}
-              color="yellow"
-            />
-            <BranchCard
-              icon={<Target className="w-8 h-8" />}
-              title="Civil Engineering"
-              description="Infrastructure development, construction management, and structural design."
-              subjects={["Structural Analysis", "Construction", "Surveying", "Transportation"]}
-              color="brown"
-            />
-            <BranchCard
-              icon={<Brain className="w-8 h-8" />}
-              title="ENTC Engineering"
-              description="Electronics and telecommunications with modern communication systems."
-              subjects={["Electronics", "Communication", "Signal Processing", "Telecom"]}
-              color="purple"
-            />
-            <BranchCard
-              icon={<Shield className="w-8 h-8" />}
-              title="Instrumentation Engineering"
-              description="Measurement systems, process control, and industrial instrumentation."
-              subjects={["Sensors", "Process Control", "Automation", "Industrial IoT"]}
-              color="purple"
-            />
-            <BranchCard
-              icon={<Brain className="w-8 h-8" />}
-              title="Artificial Intelligence & Machine Learning (AIML)"
-              description="Data science, neural networks, and AI-driven automation projects."
-              subjects={["AI Fundamentals", "Machine Learning", "Deep Learning", "MLOps"]}
-              color="blue"
-            />
-            <BranchCard
-              icon={<Cpu className="w-8 h-8" />}
-              title="Mechatronics Engineering"
-              description="Robotics, intelligent systems, and modern mechatronic integration."
-              subjects={["Robotics", "Embedded Systems", "Sensors & Actuators", "Smart Manufacturing"]}
-              color="orange"
-            />
+            {ALL_BRANCHES.map((branchName) => {
+              const config = BRANCH_CARD_CONFIG[branchName] || {
+                icon: <BookOpen className="w-8 h-8" />,
+                description: "Study materials for this branch.",
+                subjects: ["Materials"],
+                color: "blue"
+              };
+              return (
+                <BranchCard
+                  key={branchName}
+                  icon={config.icon}
+                  title={branchName}
+                  description={config.description}
+                  subjects={config.subjects}
+                  color={config.color}
+                  onClick={() => navigate(`/materials?branch=${encodeURIComponent(branchName)}`)}
+                />
+              );
+            })}
           </div>
         </div>
       </section>
@@ -1065,7 +1101,7 @@ const FeatureCard = ({ icon, title, description, color }) => {
   );
 };
 
-const BranchCard = ({ icon, title, description, subjects, color }) => {
+const BranchCard = ({ icon, title, description, subjects, color, onClick }) => {
   const colorClasses = {
     blue: "bg-blue-50 border-blue-200 text-blue-600",
     green: "bg-green-50 border-green-200 text-green-600",
@@ -1078,7 +1114,13 @@ const BranchCard = ({ icon, title, description, subjects, color }) => {
   const branchImage = getBranchImage(title);
 
   return (
-    <Card className="p-6 hover:shadow-xl transition-all duration-300 border-0 bg-white overflow-hidden group">
+    <Card
+      className={`p-6 hover:shadow-xl transition-all duration-300 border-0 bg-white overflow-hidden group ${onClick ? "cursor-pointer hover:scale-[1.02]" : ""}`}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
+    >
       <div className="relative mb-4">
         <div className={`w-full h-32 ${colorClasses[color]} rounded-xl flex items-center justify-center relative overflow-hidden`}>
           <img

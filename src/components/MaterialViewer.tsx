@@ -70,6 +70,28 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
     setCurrentRatingCount(material.ratingCount);
   }, [material.downloads, material.rating, material.ratingCount]);
 
+  // Content protection for paid materials: block copy, print, screenshot shortcuts (best-effort; cannot block OS-level tools)
+  useEffect(() => {
+    if (material.accessType !== 'paid' || !hasPurchased) return;
+    const blockKey = (e: KeyboardEvent) => {
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && (e.key === 'c' || e.key === 'C' || e.key === 'x' || e.key === 'X' || e.key === 's' || e.key === 'S' || e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      if (ctrl && e.shiftKey && (e.key === 's' || e.key === 'S' || e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      if (e.key === 'PrintScreen' || (e.keyCode === 44 && e.key === 'PrintScreen')) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    document.addEventListener('keydown', blockKey, true);
+    return () => document.removeEventListener('keydown', blockKey, true);
+  }, [material.accessType, hasPurchased]);
+
   useEffect(() => {
     if (material.accessType === 'paid') {
       const checkPurchase = async () => {
@@ -80,7 +102,7 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
             ? `/api/payments/check-purchase/${material.id}?guestId=${encodeURIComponent(guestId)}`
             : `/api/payments/check-purchase/${material.id}`;
           const checkResponse = await fetch(url, {
-            headers: authService.getAuthHeaders()
+            headers: token ? authService.getAuthHeaders() : { 'Accept': 'application/json' }
           });
           
           if (checkResponse.ok) {
@@ -427,13 +449,28 @@ const MaterialViewer: React.FC<MaterialViewerProps> = ({
       }
     }
     
-    // Free materials can be viewed normally. Paid: view-only with copy protection.
+    // Free materials can be viewed normally. Paid: view-only with copy/screenshot protection (best-effort; cannot block OS screenshots or recorders).
     const absoluteUrl = getAbsoluteUrl(material.url);
     const isPaidViewOnly = material.accessType === 'paid';
     const viewerWrapperProps = isPaidViewOnly ? {
-      className: 'select-none',
+      className: 'select-none select-none-paid',
+      style: {
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        MozUserSelect: 'none',
+        msUserSelect: 'none',
+        WebkitTouchCallout: 'none'
+      } as React.CSSProperties,
       onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
-      style: { userSelect: 'none' as const }
+      onCopy: (e: React.ClipboardEvent) => e.preventDefault(),
+      onCut: (e: React.ClipboardEvent) => e.preventDefault(),
+      onDragStart: (e: React.DragEvent) => e.preventDefault(),
+      onKeyDown: (e: React.KeyboardEvent) => {
+        const ctrl = e.ctrlKey || e.metaKey;
+        if (ctrl && ['c', 'C', 'x', 'X', 's', 'S', 'p', 'P'].includes(e.key)) e.preventDefault();
+        if (ctrl && e.shiftKey && ['s', 'S', 'c', 'C'].includes(e.key)) e.preventDefault();
+        if (e.key === 'PrintScreen') e.preventDefault();
+      }
     } : {};
     
     if (material.type.toLowerCase() === 'pdf') {

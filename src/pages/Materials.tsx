@@ -99,8 +99,10 @@ const Materials = () => {
   const [processingPayment, setProcessingPayment] = useState<string | null>(null);
   const [showQRPayment, setShowQRPayment] = useState(false);
   const [qrPaymentData, setQrPaymentData] = useState<{
-    qrCode: string;
-    shortUrl: string;
+    qrCode?: string;
+    shortUrl?: string;
+    imageUrl?: string | null;
+    useNativeUpi?: boolean;
     materialId: string;
     materialTitle: string;
     amount: number;
@@ -149,6 +151,19 @@ const Materials = () => {
   // Note: we no longer auto-select branch from the logged-in user.
   // This avoids cases where a user with a non-configured branch
   // (e.g. "Administration") gets stuck with "No subjects available".
+
+  // After payment, Razorpay redirects to callback URL. If we're on localhost, redirect to production so user lands on website
+  useEffect(() => {
+    const hasRazorpayParams = searchParams.get('razorpay_payment_id') || searchParams.get('razorpay_payment_link_id');
+    const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (hasRazorpayParams && isLocalhost) {
+      const prodBase = 'https://www.digidiploma.in';
+      const path = window.location.pathname || '/materials';
+      const qs = window.location.search || '';
+      window.location.replace(`${prodBase}${path}${qs}`);
+      return;
+    }
+  }, [searchParams]);
 
   // Apply share-link URL params: set branch on mount; set semester/subject when subjects load
   useEffect(() => {
@@ -534,17 +549,19 @@ const Materials = () => {
       }
 
       const linkData = await linkResponse.json();
-      
+      const amountRupees = (linkData.amount || 0) / 100;
       setQrPaymentData({
         qrCode: linkData.qrCode,
-        shortUrl: linkData.shortUrl,
+        shortUrl: linkData.shortUrl || null,
+        imageUrl: linkData.imageUrl || null,
+        useNativeUpi: !!linkData.useNativeUpi,
         materialId: material._id,
         materialTitle: material.title,
-        amount: linkData.amount / 100 // Convert from paise to rupees
+        amount: amountRupees
       });
       setShowQRPayment(true);
       setProcessingPayment(null);
-      startPaymentStatusPolling(material._id, linkData.paymentLinkId, guestId);
+      startPaymentStatusPolling(material._id, linkData.paymentLinkId || linkData.qrCodeId, guestId);
     } catch (error: any) {
       console.error('QR Payment error:', error);
       let errorMessage = error.message || "Failed to create payment link. Please try again.";
@@ -1758,10 +1775,18 @@ const Materials = () => {
               <div className="space-y-4">
                 <div className="text-center">
                   <p className="text-sm text-slate-600 mb-2">
-                    Scan this QR code with any UPI app (Google Pay, PhonePe, Paytm, etc.)
+                    {qrPaymentData.useNativeUpi
+                      ? 'Scan with any UPI app (GPay, PhonePe, Paytm) to pay directly — no browser redirect.'
+                      : 'Scan this QR code with any UPI app (Google Pay, PhonePe, Paytm, etc.)'}
                   </p>
                   <div className="bg-white p-4 rounded-lg border-2 border-slate-200 inline-block">
-                    {qrPaymentData.shortUrl ? (
+                    {qrPaymentData.useNativeUpi && qrPaymentData.imageUrl ? (
+                      <img
+                        src={qrPaymentData.imageUrl}
+                        alt="UPI QR - scan to pay directly"
+                        className="w-64 h-64 mx-auto block object-contain"
+                      />
+                    ) : qrPaymentData.shortUrl ? (
                       <QRCodeSVG 
                         value={qrPaymentData.shortUrl} 
                         size={256} 
@@ -1780,18 +1805,20 @@ const Materials = () => {
                   </p>
                 </div>
                 
-                <div className="border-t pt-4">
-                  <p className="text-xs text-slate-500 mb-2 text-center">
-                    Or click the link below to pay:
-                  </p>
-                  <Button
-                    variant="outline"
-                    className="w-full bg-green-600 hover:bg-green-700 text-white border-green-600"
-                    onClick={() => window.open(qrPaymentData.shortUrl, '_blank')}
-                  >
-                    Open Payment Link
-                  </Button>
-                </div>
+                {!qrPaymentData.useNativeUpi && qrPaymentData.shortUrl && (
+                  <div className="border-t pt-4">
+                    <p className="text-xs text-slate-500 mb-2 text-center">
+                      Or click the link below to pay:
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="w-full bg-green-600 hover:bg-green-700 text-white border-green-600"
+                      onClick={() => window.open(qrPaymentData.shortUrl!, '_blank')}
+                    >
+                      Open Payment Link
+                    </Button>
+                  </div>
+                )}
 
                 {checkingPaymentStatus && (
                   <div className="flex items-center justify-center gap-2 text-blue-600">
@@ -1800,10 +1827,13 @@ const Materials = () => {
                   </div>
                 )}
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1">
                   <p className="text-xs text-blue-800">
                     💡 <strong>Note:</strong> After payment, this dialog will close and you can view the material. 
                     Please keep this window open.
+                  </p>
+                  <p className="text-xs text-blue-800">
+                    Keep this tab open on your laptop. After you pay from your phone, this page will update automatically and you can view the material here.
                   </p>
                 </div>
               </div>

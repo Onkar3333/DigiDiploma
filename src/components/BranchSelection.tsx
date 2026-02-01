@@ -132,7 +132,7 @@ const branches = [
 ];
 
 interface BranchSelectionProps {
-  onBranchSelect: (branchId: string) => void;
+  onBranchSelect: (branchName: string) => void;
   userSelectedBranch?: string;
 }
 
@@ -187,7 +187,7 @@ const BranchSelection = ({ onBranchSelect, userSelectedBranch }: BranchSelection
                 key={branch.id}
                 className="glass-card p-8 hover-lift cursor-pointer group relative overflow-hidden animate-fade-in"
                 style={{ animationDelay: `${index * 100}ms` }}
-                onClick={() => onBranchSelect(branch.id)}
+                onClick={() => onBranchSelect(branch.name)}
               >
                 {/* Background Gradient */}
                 <div className={`absolute inset-0 bg-gradient-to-br ${branch.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>

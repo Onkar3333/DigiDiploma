@@ -507,3 +507,17 @@
     }
   }
 }
+
+/* Paid material viewer: hide selection highlight (best-effort content protection; cannot block OS screenshots/recorders) */
+.select-none-paid,
+.select-none-paid * {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+.select-none-paid::selection,
+.select-none-paid *::selection {
+  background: transparent;
+  color: inherit;
+}

@@ -237,6 +237,88 @@ router.post("/create-payment-link", async (req, res) => {
       return res.status(400).json({ error: "Amount too small", details: "Minimum payment is ₹1" });
     }
 
+    // Always use production URL for payment callback so Razorpay redirects to website, not localhost
+    const callbackBase = process.env.PAYMENT_CALLBACK_BASE_URL
+      || process.env.FRONTEND_URL
+      || (process.env.NODE_ENV === 'production' ? 'https://www.digidiploma.in' : 'http://localhost:5173');
+    const callbackUrl = `${callbackBase.replace(/\/$/, '')}/materials?materialId=${materialId}`;
+
+    const keyId = sanitizeKey(process.env.RAZORPAY_KEY_ID);
+    const keySecret = sanitizeKey(process.env.RAZORPAY_KEY_SECRET);
+    const notes = {
+      materialId: String(materialId),
+      materialTitle: (material.title || '').substring(0, 100),
+      ...(userId && { userId: String(userId) }),
+      ...(effectiveGuestId && { guestId: String(effectiveGuestId) }),
+    };
+
+    // Try native UPI QR first (scan with any UPI app → pay directly, no Razorpay page). Requires Razorpay support to enable.
+    let useNativeUpi = false;
+    let nativeQrId = null;
+    let nativeQrImageUrl = null;
+    if (typeof fetch === 'function') {
+      try {
+        const closeBy = Math.floor(Date.now() / 1000) + 30 * 60; // 30 min
+        const qrBody = {
+          type: 'upi_qr',
+          name: 'DigiDiploma Material',
+          usage: 'single_use',
+          fixed_amount: true,
+          payment_amount: amountInPaise,
+          description: `Purchase: ${(material.title || 'Material').substring(0, 100)}`,
+          close_by,
+          notes,
+        };
+        const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+        const qrRes = await fetch('https://api.razorpay.com/v1/payments/qr_codes', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Basic ${auth}`,
+          },
+          body: JSON.stringify(qrBody),
+        });
+        if (qrRes.ok) {
+          const qrData = await qrRes.json();
+          nativeQrId = qrData.id;
+          nativeQrImageUrl = qrData.image_url || null;
+          useNativeUpi = true;
+        }
+      } catch (e) {
+        // Fall back to payment link
+      }
+    }
+
+    if (useNativeUpi && nativeQrId) {
+      const payment = await Payment.create({
+        userId: userId || undefined,
+        guestId: effectiveGuestId || undefined,
+        materialId,
+        razorpayOrderId: nativeQrId,
+        amount: amountInPaise,
+        currency: "INR",
+        status: 'pending',
+        metadata: {
+          materialTitle: material.title,
+          materialSubjectCode: material.subjectCode,
+          qrCodeId: nativeQrId,
+          paymentMethod: 'upi_qr_native'
+        }
+      });
+      return res.status(200).json({
+        useNativeUpi: true,
+        qrCodeId: nativeQrId,
+        imageUrl: nativeQrImageUrl,
+        amount: amountInPaise,
+        currency: "INR",
+        paymentLinkId: null,
+        shortUrl: null,
+        orderId: nativeQrId,
+        paymentId: payment.id
+      });
+    }
+
+    // Fallback: Payment Link (opens Razorpay page; scan QR → open link in browser → choose UPI app)
     const paymentLinkOptions = {
       amount: amountInPaise,
       currency: "INR",
@@ -244,13 +326,8 @@ router.post("/create-payment-link", async (req, res) => {
       customer: { name: 'Customer' },
       notify: { sms: false, email: false },
       reminder_enable: false,
-      notes: {
-        materialId: String(materialId),
-        materialTitle: (material.title || '').substring(0, 100),
-        ...(userId && { userId: String(userId) }),
-        ...(effectiveGuestId && { guestId: String(effectiveGuestId) }),
-      },
-      callback_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/materials?materialId=${materialId}`,
+      notes,
+      callback_url: callbackUrl,
       callback_method: 'get'
     };
 
@@ -287,9 +364,11 @@ router.post("/create-payment-link", async (req, res) => {
     });
 
     res.status(200).json({
+      useNativeUpi: false,
       paymentLinkId: paymentLink.id,
       shortUrl: paymentLink.short_url,
-      qrCode: paymentLink.qr_code, // QR code image URL
+      qrCode: paymentLink.qr_code,
+      imageUrl: null,
       amount: paymentLink.amount,
       currency: paymentLink.currency,
       orderId: orderId,
@@ -811,6 +890,50 @@ router.post("/webhook", express.raw({ type: 'application/json' }), async (req, r
     const event = JSON.parse(webhookBody.toString());
     console.log(`📥 Webhook event received: ${event.event}`);
 
+    // Handle qr_code.credited event (native UPI QR - pay directly from UPI app)
+    if (event.event === 'qr_code.credited') {
+      const qrEntity = event.payload?.qr_code?.entity;
+      const payEntity = event.payload?.payment?.entity;
+      const qrCodeId = qrEntity?.id;
+      const paymentId = payEntity?.id;
+
+      if (!qrCodeId || !paymentId) {
+        return res.status(200).json({ received: true });
+      }
+
+      const payment = await Payment.findOne({ 'metadata.qrCodeId': qrCodeId });
+      if (!payment) {
+        return res.status(200).json({ received: true });
+      }
+
+      try {
+        await Payment.findOneAndUpdate(
+          { 'metadata.qrCodeId': qrCodeId },
+          {
+            status: 'completed',
+            razorpayPaymentId: paymentId,
+            paymentMethod: payEntity?.method || 'upi'
+          }
+        );
+        if (payment.userId) {
+          const material = await Material.findById(payment.materialId);
+          if (material && material.accessType === 'paid') {
+            try {
+              await DownloadToken.create({
+                userId: payment.userId,
+                materialId: payment.materialId,
+                paymentId: payment.id,
+                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+              });
+            } catch (e) { /* ignore */ }
+          }
+        }
+      } catch (e) {
+        console.error('qr_code.credited update error:', e);
+      }
+      return res.status(200).json({ received: true });
+    }
+
     // Handle payment_link.paid event (for UPI QR code payments)
     if (event.event === 'payment_link.paid') {
       const paymentLinkData = event.payload.payment_link.entity;
@@ -874,14 +997,14 @@ router.post("/webhook", express.raw({ type: 'application/json' }), async (req, r
 
       console.log(`💰 Payment captured - Order ID: ${orderId}, Payment ID: ${paymentData.id}, Payment Link ID: ${paymentLinkId || 'N/A'}`);
 
-      // Find the payment record by order ID or payment link ID
-      let payment = await Payment.findOne({ razorpayOrderId: orderId });
-      
-      // If not found by order ID, try to find by payment link ID in metadata
+      // Find the payment record by order ID, payment link ID, or qr_code ID
+      let payment = orderId ? await Payment.findOne({ razorpayOrderId: orderId }) : null;
       if (!payment && paymentLinkId) {
-        payment = await Payment.findOne({ 
-          'metadata.paymentLinkId': paymentLinkId 
-        });
+        payment = await Payment.findOne({ 'metadata.paymentLinkId': paymentLinkId });
+      }
+      const qrCodeId = paymentData.notes?.qr_code_id || paymentData.notes?.qrCodeId;
+      if (!payment && qrCodeId) {
+        payment = await Payment.findOne({ 'metadata.qrCodeId': qrCodeId });
       }
 
       if (!payment) {
@@ -894,9 +1017,9 @@ router.post("/webhook", express.raw({ type: 'application/json' }), async (req, r
         const razorpayPayment = await razorpayInstance.payments.fetch(paymentData.id);
         
         if (razorpayPayment.status === 'captured' || razorpayPayment.status === 'authorized') {
-          // Update payment status
+          // Update payment status (use _id so it works when orderId is null e.g. QR code payments)
           await Payment.findOneAndUpdate(
-            { razorpayOrderId: orderId },
+            { _id: payment._id },
             {
               status: 'completed',
               razorpayPaymentId: paymentData.id,
